@@ -59,8 +59,26 @@
     Confusing and Unsolved Problem:
     One user reported experiencing no ability to send any messages using maines this was only in his case and am not entirely sure why that happened yet; but for most people that shouldn't be an issue
 
-    PLEASE DO POST COMMENTS , SUGGESTIONS, ETC 
-    AT CURSEFORGE COMMENT SECTION 
+    PLEASE DO POST COMMENTS , SUGGESTIONS, ETC
+    AT CURSEFORGE COMMENT SECTION
+
+    ==========================================
+    MIDNIGHT (12.1.0) COMPATIBILITY FIX - FIXED
+    ==========================================
+    Patch 12.0.0 rearchitected how WoW sends outgoing chat, which broke the old
+    RawHook on SendChatMessage entirely (it silently stopped intercepting anything,
+    no errors, name tag just never appeared). Maines now hooks the modern
+    EventRegistry "ChatFrame.OnEditBoxPreSendText" callback instead, editing the
+    edit box text directly before Blizzard reads it for sending. Classic clients
+    fall back to hooking ChatEdit_SendText, since they don't fire that event.
+
+    Chat tagging is confirmed working again on retail 12.1.0. If it ever appears
+    silently broken again, run /maindebug to print exactly which check is failing
+    (chat type, saved name/brackets, channel filter, dedupe) instead of guessing.
+
+    STILL TO DO:
+    - Aesthetic / GUI rework (see NEXT FEATURES TO IMPLEMENT above - still applies)
+    - General visual polish pass on frames, brackets, textures
 
  ]]
 local maines = LibStub("AceAddon-3.0"):NewAddon("Maines","AceHook-3.0")
