@@ -183,17 +183,24 @@ local function Maines_TagMessage(msg, chatType)
     local name = _G["Maines_Name_DB"]
     local left = _G["Maines_Bracket_Left_DB"]
     local right = _G["Maines_Bracket_Right_DB"]
+    if Maines_Debug then
+        print(("|cFF00FF00Maines debug|r: name=%s left=%s right=%s"):format(tostring(name), tostring(left), tostring(right)))
+    end
     if not (name and left and right) then return msg end
 
     local filter = _G["Maines_Chat_Options_DB"]
     local valid = false
     if filter and type(filter) == "table" and #filter > 0 then
         for _, v in ipairs(filter) do if chatType == v then valid = true; break end end
+        if Maines_Debug then print("|cFF00FF00Maines debug|r: using filter table, size="..#filter.." valid="..tostring(valid)) end
     else
         for _, ctype in ipairs(Channel_Types) do if chatType == ctype then valid = true; break end end
+        if Maines_Debug then print("|cFF00FF00Maines debug|r: no filter, checked Channel_Types, valid="..tostring(valid)) end
     end
 
-    if valid and not string.find(msg, left..name..right, 1, true) then
+    local alreadyTagged = string.find(msg, left..name..right, 1, true)
+    if Maines_Debug then print("|cFF00FF00Maines debug|r: alreadyTagged="..tostring(alreadyTagged)) end
+    if valid and not alreadyTagged then
         return left .. name .. right .. " " .. msg
     end
     return msg
