@@ -174,25 +174,57 @@ SlashCmdList["MAINCHAT"] = function(msg)
     ReloadUI()
 end
 
--- Ace3 Raw Hook for chat formatting:
-function maines:OnInitialize() self:RawHook("SendChatMessage", true) end
-function maines:SendChatMessage(msg, chatType, language, channel)
+-- Chat formatting:
+-- Patch 12.0.0 (Midnight) rearchitected the outgoing chat path, so raw-hooking the
+-- protected SendChatMessage API no longer intercepts anything. Retail now wants addons
+-- to edit the message via the EventRegistry "ChatFrame.OnEditBoxPreSendText" callback,
+-- which fires before the edit box's text is read for sending.
+local function Maines_TagMessage(msg, chatType)
     local name = _G["Maines_Name_DB"]
     local left = _G["Maines_Bracket_Left_DB"]
     local right = _G["Maines_Bracket_Right_DB"]
-    if name and left and right then
-        local filter = _G["Maines_Chat_Options_DB"]
-        local valid = false
-        if filter and type(filter) == "table" and #filter > 0 then
-            for _, v in ipairs(filter) do if chatType == v then valid = true; break end end
-        else
-            for _, ctype in ipairs(Channel_Types) do if chatType == ctype then valid = true; break end end
-        end
-        if valid and not string.find(msg, left..name..right, 1, true) then
-            msg = left .. name .. right .. " " .. msg
-        end
+    if not (name and left and right) then return msg end
+
+    local filter = _G["Maines_Chat_Options_DB"]
+    local valid = false
+    if filter and type(filter) == "table" and #filter > 0 then
+        for _, v in ipairs(filter) do if chatType == v then valid = true; break end end
+    else
+        for _, ctype in ipairs(Channel_Types) do if chatType == ctype then valid = true; break end end
     end
-    self.hooks.SendChatMessage(msg, chatType, language, channel)
+
+    if valid and not string.find(msg, left..name..right, 1, true) then
+        return left .. name .. right .. " " .. msg
+    end
+    return msg
+end
+
+function maines:ModifyChatMessage(editBox)
+    if InCombatLockdown() then return end
+    local msg = editBox:GetText()
+    if not msg or msg == "" then return end
+    local chatType = editBox:GetAttribute("chatType") or editBox.chatType
+    local tagged = Maines_TagMessage(msg, chatType)
+    if tagged ~= msg then
+        editBox:SetText(tagged)
+    end
+end
+
+function maines:OnInitialize()
+    if EventRegistry and EventRegistry.RegisterCallback then
+        -- Modern retail (12.0+): edit the message in-place before it's sent.
+        EventRegistry:RegisterCallback("ChatFrame.OnEditBoxPreSendText", function(_, editBox)
+            self:ModifyChatMessage(editBox)
+        end, self)
+    else
+        -- Classic clients: no EventRegistry callback, so hook the edit box's send path.
+        self:RawHook("ChatEdit_SendText", true)
+    end
+end
+
+function maines:ChatEdit_SendText(editBox, addHistory)
+    self:ModifyChatMessage(editBox)
+    self.hooks.ChatEdit_SendText(editBox, addHistory)
 end
 
 -- UI logic and frame creation (full original code preserved):
