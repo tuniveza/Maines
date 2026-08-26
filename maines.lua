@@ -209,6 +209,7 @@ function maines:ModifyChatMessage(editBox)
     local tagged = Maines_TagMessage(msg, chatType)
     if tagged ~= msg then
         editBox:SetText(tagged)
+        if Maines_Debug then print("|cFF00FF00Maines debug|r: after SetText, GetText()="..tostring(editBox:GetText())) end
     end
 end
 
