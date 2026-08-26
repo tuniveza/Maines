@@ -203,22 +203,37 @@ function maines:ModifyChatMessage(editBox)
     if InCombatLockdown() then return end
     local msg = editBox:GetText()
     if not msg or msg == "" then return end
-    local chatType = editBox:GetAttribute("chatType") or editBox.chatType
+    -- The default SAY edit box has no "chatType" attribute set at all, so fall back to SAY.
+    local chatType = editBox:GetAttribute("chatType") or editBox.chatType or "SAY"
+    if Maines_Debug then print("|cFF00FF00Maines debug|r: chatType="..tostring(chatType).." msg="..tostring(msg)) end
     local tagged = Maines_TagMessage(msg, chatType)
     if tagged ~= msg then
         editBox:SetText(tagged)
     end
 end
 
+SLASH_MAINDEBUG1 = "/maindebug"
+SlashCmdList["MAINDEBUG"] = function()
+    Maines_Debug = not Maines_Debug
+    print("|cFF00FF00Maines debug|r: "..(Maines_Debug and "ON" or "OFF"))
+end
+
 function maines:OnInitialize()
-    if EventRegistry and EventRegistry.RegisterCallback then
-        -- Modern retail (12.0+): edit the message in-place before it's sent.
+    -- Classic clients may have a backported EventRegistry table that never fires this
+    -- event, so gate on the actual client build rather than just table presence.
+    local _, _, _, tocVersion = GetBuildInfo()
+    local isModernRetail = tocVersion and tocVersion >= 120000
+
+    if isModernRetail and EventRegistry and EventRegistry.RegisterCallback then
+        -- Retail 12.0+: edit the message in-place before it's sent.
         EventRegistry:RegisterCallback("ChatFrame.OnEditBoxPreSendText", function(_, editBox)
             self:ModifyChatMessage(editBox)
         end, self)
+        print("|cFF00FF00Maines|r: chat hook active (EventRegistry)")
     else
         -- Classic clients: no EventRegistry callback, so hook the edit box's send path.
         self:RawHook("ChatEdit_SendText", true)
+        print("|cFF00FF00Maines|r: chat hook active (ChatEdit_SendText)")
     end
 end
 
