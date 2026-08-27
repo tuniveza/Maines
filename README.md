@@ -38,19 +38,18 @@ Once set, the name/bracket persist across sessions (saved per character) until y
 
 Prints your currently saved main name, bracket type, and left/right symbols. Doesn't change anything.
 
-### Playing your main vs. an alt — `/mainonmain`
+### Playing your main vs. an alt — `/mainhide` and `/mainshow`
 
 Maines compares your saved main name against whichever character you're actually logged into
 (case-insensitive), and behaves differently depending on the result:
 
 | Command | When you're **on your main** | When you're **on an alt** |
 |---|---|---|
-| `/mainonmain hide` (default) | Tag is suppressed — no point tagging yourself as yourself | Tagged as normal |
-| `/mainonmain tag` | Always tagged, even on your main | Tagged as normal |
+| `/mainhide` (default) | Tag is suppressed — no point tagging yourself as yourself | Tagged as normal |
+| `/mainshow` | Always tagged, even on your main | Tagged as normal |
 
-Run `/mainonmain` with no arguments to print which mode is currently active. This only affects
-the "on your main" case — Maines always tags on alts regardless of this setting, since that's
-the whole point of the addon.
+Either command prints which mode is now active. This only affects the "on your main" case —
+Maines always tags on alts regardless of this setting, since that's the whole point of the addon.
 
 ### Opening the UI — `/maines`
 
@@ -133,7 +132,7 @@ working — it'll show exactly which check is failing instead of guessing.
 - **Communities support:** `COMMUNITIES_CHANNEL`, `BN_WHISPER`, and the `*_LEADER` broadcast
   types are now tagged by default alongside the classic channel list.
 - **On-main detection:** Maines now knows whether you're playing the character set as your main
-  and, by default, skips tagging in that case — see `/mainonmain` above to change it.
+  and, by default, skips tagging in that case — see `/mainhide` / `/mainshow` above to change it.
 - **Still needed:** an aesthetic/GUI rework — the frames, brackets, and textures are still the
   original placeholder art and haven't been touched (though `/maincolor` at least makes them
   more colorful in the meantime).

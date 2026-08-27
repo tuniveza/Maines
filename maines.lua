@@ -36,7 +36,7 @@
     <NEW> /brackets - to see all bracket types
     <NEW> /maincolor - paints the Maines UI textures a random color from a random public-domain art palette
     <NEW> /mainmap - toggle the Maines minimap icon on/off
-    <NEW> /mainonmain hide|tag - choose whether the tag is suppressed when you're playing your own main (default: hide)
+    <NEW> /mainhide / /mainshow - choose whether the tag is suppressed when you're playing your own main (default: hidden)
     /mainmusic - to reset the maines introduction music upon first open
     /mainstamp - to see stamp (version) of maines
 
@@ -97,14 +97,14 @@
     explicit list if you want to exclude any of these again.
 
     ==========================================
-    ON-MAIN DETECTION (/mainonmain)
+    ON-MAIN DETECTION (/mainhide, /mainshow)
     ==========================================
     Previously Maines tagged chat the same way no matter which character was logged
     in, including your actual main - so playing your main produced messages like
     "(Misamu) hello" while you WERE Misamu. Maines now compares the logged-in
     character's name against your saved main name (case-insensitive) and, by
-    default, suppresses the tag when they match. /mainonmain tag switches back to
-    always tagging, even on your main; /mainonmain hide restores the default. Alts
+    default, suppresses the tag when they match. /mainshow switches back to
+    always tagging, even on your main; /mainhide restores the default. Alts
     are always tagged regardless of this setting - it only changes what happens
     when the main itself is the one logged in.
 
@@ -342,9 +342,9 @@ local function Maines_TagMessage(msg, chatType)
     end
     if not (name and left and right) then return msg end
 
-    -- /mainonmain: decide what happens when you're actually playing the character set as
-    -- your main, as opposed to an alt. Defaults to "hide" (tagging yourself as yourself is
-    -- pointless); /mainonmain tag switches to always tagging regardless of who's logged in.
+    -- /mainhide, /mainshow: decide what happens when you're actually playing the character
+    -- set as your main, as opposed to an alt. Defaults to hidden (tagging yourself as
+    -- yourself is pointless); /mainshow switches to always tagging regardless of who's logged in.
     local onMain = strlower(UnitName("player") or "") == strlower(name)
     if Maines_Debug then print("|cFF00FF00Maines debug|r: onMain="..tostring(onMain).." mode="..tostring(Maines_HideOnMain_DB and "hide" or "tag")) end
     if onMain and Maines_HideOnMain_DB then
@@ -389,19 +389,18 @@ SlashCmdList["MAINDEBUG"] = function()
     print("|cFF00FF00Maines debug|r: "..(Maines_Debug and "ON" or "OFF"))
 end
 
-SLASH_MAINONMAIN1 = "/mainonmain"
-SlashCmdList["MAINONMAIN"] = function(msg)
-    msg = msg and strtrim(strlower(msg)) or ""
-    if msg == "hide" then
-        Maines_HideOnMain_DB = true
-    elseif msg == "tag" then
-        Maines_HideOnMain_DB = false
-    elseif msg ~= "" then
-        print("|cFF00FF00Maines|r: usage: /mainonmain hide | tag")
-        return
-    end
+SLASH_MAINHIDE1 = "/mainhide"
+SlashCmdList["MAINHIDE"] = function()
+    Maines_HideOnMain_DB = true
     print("|cFF00FF00Maines|r: when playing your main ("..tostring(_G["Maines_Name_DB"] or "not set")..
-        "), Maines will "..(Maines_HideOnMain_DB and "|cFFFFE4B5hide|r the tag" or "|cFFFFE4B5still tag|r").." (change with /mainonmain hide|tag)")
+        "), the tag will |cFFFFE4B5hide|r (switch back with /mainshow)")
+end
+
+SLASH_MAINSHOW1 = "/mainshow"
+SlashCmdList["MAINSHOW"] = function()
+    Maines_HideOnMain_DB = false
+    print("|cFF00FF00Maines|r: when playing your main ("..tostring(_G["Maines_Name_DB"] or "not set")..
+        "), the tag will |cFFFFE4B5still show|r (switch back with /mainhide)")
 end
 
 -- Gently spins the minimap icon's texture forever, purely for fun.
@@ -457,7 +456,7 @@ end
 
 function maines:OnInitialize()
     -- Default: hide the tag when you're actually playing the character set as your main.
-    -- Nil means never configured yet (fresh install or pre-/mainonmain saved variables).
+    -- Nil means never configured yet (fresh install or pre-/mainhide saved variables).
     if Maines_HideOnMain_DB == nil then
         Maines_HideOnMain_DB = true
     end
