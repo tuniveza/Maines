@@ -19,24 +19,32 @@
     ------------------
     PRESENT FEATURES;
     ------------------
-    
+
     [main] slash commands
     /main - to see your mainname and brackets type
     /mains  [/mains mainname leftbracketype]
+    /mains  [/mains mainname symbol]            -- one custom symbol used for BOTH brackets, e.g. /mains Misamu *  ->  *Misamu*
+    /mains  [/mains mainname left right]        -- independent left/right symbol sequences, e.g. /mains Misamu << >>  ->  <<Misamu>>
     /maines - to open the maines user interfaces
 
     [extra] slash commands:
     <NEW> /mainchat - [/mainchat SAY,WHISPER,GUILD,DND] - capital letters and comma seperation are a must
-    <NEW> /brackets - to see all bracket types 
+    <NEW> /mainchat list        -- print the currently active channel filter
+    <NEW> /mainchat +CHANNEL    -- add a single channel to the existing filter
+    <NEW> /mainchat -CHANNEL    -- remove a single channel from the existing filter
+    <NEW> /mainchat (no args)   -- clear the filter, tags every channel including Communities
+    <NEW> /brackets - to see all bracket types
+    <NEW> /maincolor - paints the Maines UI textures a random color from a random public-domain art palette
+    <NEW> /mainmap - toggle the Maines minimap icon on/off
     /mainmusic - to reset the maines introduction music upon first open
     /mainstamp - to see stamp (version) of maines
 
-    
+
     NEXT FEATURES TO IMPLEMENT:
     Graphical User Interface Improvements *ENTIRE RE-WORK -_-*
     Aesthetic Brackets
     Aesthetic Features
-    
+
     SLASH COMMANDS:
     /mainhelp - a way to see all the commands for maines
     =========================
@@ -76,6 +84,17 @@
     silently broken again, run /maindebug to print exactly which check is failing
     (chat type, saved name/brackets, channel filter, dedupe) instead of guessing.
 
+    ==========================================
+    COMMUNITIES SUPPORT
+    ==========================================
+    Modern retail chat sent inside the Communities panel (the successor to plain
+    Guild chat for cross-realm/Battle.net communities) uses its own chat type,
+    COMMUNITIES_CHANNEL, distinct from GUILD. That type is now included by default
+    so /mainchat tags Community chat out of the box. BN_WHISPER (Battle.net
+    whispers) and the *_LEADER broadcast types (PARTY_LEADER, RAID_LEADER,
+    INSTANCE_CHAT_LEADER) were added for the same reason. Use /mainchat with an
+    explicit list if you want to exclude any of these again.
+
     STILL TO DO:
     - Aesthetic / GUI rework (see NEXT FEATURES TO IMPLEMENT above - still applies)
     - General visual polish pass on frames, brackets, textures
@@ -84,6 +103,9 @@
 local maines = LibStub("AceAddon-3.0"):NewAddon("Maines","AceHook-3.0")
 
 local FontPath = [[Interface\AddOns\Maines\fonts\adventure\Adventure.ttf]]
+
+-- Every UI texture gets registered here as it's created so /maincolor can repaint all of them at once.
+local Maines_Textures = {}
 
 -- UI Frames
 local maines_frame = CreateFrame("Frame", "Maines_Frame", UIParent)
@@ -101,6 +123,8 @@ SLASH_MAINCHAT1 = '/mainchat'
 SLASH_MAINMUSIC1 = '/mainmusic'
 SLASH_MAINSTAMP1 = '/mainstamp'
 SLASH_BRACKET1 = '/bracket'
+SLASH_MAINCOLOR1 = '/maincolor'
+SLASH_MAINMAP1 = '/mainmap'
 
 Maines_Bracket_Color = ""
 bracket_left_option = ""
@@ -112,7 +136,10 @@ _G["Space_Option_DB"] = ""
 
 local Channel_Types = {
     "GUILD", "OFFICER", "RAID", "INSTANCE_CHAT", "PARTY", "WHISPER", "RAID_WARNING",
-    "EMOTE", "VOICE_TEXT", "CHANNEL", "AFK", "DND", "SAY", "YELL"
+    "EMOTE", "VOICE_TEXT", "CHANNEL", "AFK", "DND", "SAY", "YELL",
+    -- Modern retail additions: Communities panel chat, Battle.net whispers, and the
+    -- leader-broadcast variants of party/raid/instance chat.
+    "COMMUNITIES_CHANNEL", "BN_WHISPER", "PARTY_LEADER", "RAID_LEADER", "INSTANCE_CHAT_LEADER"
 }
 
 local Bracket_Types = {
@@ -128,9 +155,55 @@ local Bracket_Types = {
     ["#"] = {"#", "#", "|cFFADD8E6", "Hash Bracket"},
 }
 
+-- /maincolor: dominant colors pulled from well-known public-domain paintings. Each entry is a
+-- {name = ..., colors = {hex, hex, ...}} table; the command rolls a random palette, then a
+-- random color from within it.
+local Color_Palettes = {
+    {name = "The Starry Night (Van Gogh, 1889)", colors = {"1B3B6F", "2E5A87", "0B1F3A", "F3D250", "F7E7A0"}},
+    {name = "The Great Wave off Kanagawa (Hokusai, c.1831)", colors = {"1B3A5C", "3E6E96", "C9D8E0", "EDE4D3", "2A2A2A"}},
+    {name = "The Kiss (Klimt, 1908)", colors = {"C9A227", "8B1E3F", "1C1C1C", "D4AF37", "5A3E2B"}},
+    {name = "Water Lilies (Monet, 1906)", colors = {"7FA6A0", "A8C9C4", "D9A6C2", "5B7C99", "EDEAD9"}},
+    {name = "The Scream (Munch, 1893)", colors = {"E8622C", "F2A65A", "2E3A6E", "8C1C13", "F4E3B2"}},
+    {name = "Composition II (Mondrian, 1930)", colors = {"D40920", "1356A2", "F7D842", "1B1B1B", "F5F5F0"}},
+}
+
+local function Maines_HexToRGB(hex)
+    return tonumber(hex:sub(1, 2), 16) / 255, tonumber(hex:sub(3, 4), 16) / 255, tonumber(hex:sub(5, 6), 16) / 255
+end
+
 -- Slash command handlers:
 SlashCmdList["MAINMUSIC"] = function() _G["PlayedMusic_DB"] = "noplayed" end
 SlashCmdList["MAINSTAMP"] = function() print("The Radial Stamp [ ∂ ]") end
+SlashCmdList["MAINCOLOR"] = function()
+    if #Maines_Textures == 0 then
+        print("|cFF00FF00Maines|r: no textures loaded yet — open /maines once first")
+        return
+    end
+    local palette = Color_Palettes[math.random(#Color_Palettes)]
+    local hex = palette.colors[math.random(#palette.colors)]
+    local r, g, b = Maines_HexToRGB(hex)
+    for _, tex in ipairs(Maines_Textures) do
+        tex:SetVertexColor(r, g, b)
+    end
+    print(("|cFF00FF00Maines|r: painted #%s from \"%s\""):format(hex, palette.name))
+end
+SlashCmdList["MAINMAP"] = function()
+    local icon = LibStub("LibDBIcon-1.0", true)
+    if not (icon and icon:IsRegistered("Maines")) then
+        print("|cFF00FF00Maines|r: minimap icon isn't available")
+        return
+    end
+    Maines_DB = Maines_DB or {}
+    Maines_DB.minimap = Maines_DB.minimap or {}
+    Maines_DB.minimap.hide = not Maines_DB.minimap.hide
+    if Maines_DB.minimap.hide then
+        icon:Hide("Maines")
+        print("|cFF00FF00Maines|r: minimap icon hidden")
+    else
+        icon:Show("Maines")
+        print("|cFF00FF00Maines|r: minimap icon shown")
+    end
+end
 SlashCmdList["BRACKET"] = function()
     local i = 1
     for k,v in pairs(Bracket_Types) do
@@ -150,14 +223,23 @@ SlashCmdList["MAINES"] = function()
     _G["PlayedMusic_DB"] = "played"
 end
 SlashCmdList["MAINS"] = function(msg)
-    local name = string.match(msg, "(%w+)")
+    local args = {}
+    for token in string.gmatch(msg or "", "%S+") do table.insert(args, token) end
+    local name, leftArg, rightArg = args[1], args[2], args[3]
+
     local left, right, color, typ
-    for symbol, info in pairs(Bracket_Types) do
-        if string.find(msg, "%" .. symbol) then
-            left, right, color, typ = unpack(info)
-            break
+    if leftArg and rightArg then
+        -- Dual symbol sequence: left and right defined independently, e.g. /mains hello << >>
+        left, right, color, typ = leftArg, rightArg, "|cFFDA70D6", "Custom Bracket"
+    elseif leftArg then
+        if Bracket_Types[leftArg] then
+            left, right, color, typ = unpack(Bracket_Types[leftArg])
+        else
+            -- One custom symbol used for both sides, e.g. /mains hello *
+            left, right, color, typ = leftArg, leftArg, "|cFFDA70D6", "Custom Bracket"
         end
     end
+
     if name and left and right then
         _G["Maines_Name_DB"] = name
         _G["Maines_Bracket_Left_DB"] = left
@@ -168,8 +250,10 @@ SlashCmdList["MAINS"] = function(msg)
         print("|cFFB8AEA0", "Left Bracket", "|r", left, "|r")
         print("|cFFA9A193", "Right Bracket", "|r", right, "|r")
     else
-        print("Usage: /mains <mainname> <bracket symbol>")
-        print("Example: /mains hello (  — will output (hello) in chat channels")
+        print("Usage: /mains <mainname> <bracket symbol> [right bracket symbol]")
+        print("Example: /mains hello (        — will output (hello) in chat channels")
+        print("Example: /mains hello *        — custom symbol for both sides: *hello*")
+        print("Example: /mains hello << >>    — independent left/right sequences: <<hello>>")
     end
 end
 SlashCmdList["MAIN"] = function()
@@ -184,12 +268,51 @@ SlashCmdList["MAIN"] = function()
         print("|cFFA9A193", "Right Bracket", "|r", right, "|r")
     end
 end
+local function Maines_GetChatFilter()
+    _G["Maines_Chat_Options_DB"] = _G["Maines_Chat_Options_DB"] or {}
+    return _G["Maines_Chat_Options_DB"]
+end
+
 SlashCmdList["MAINCHAT"] = function(msg)
-    Maines_Chat_Options = {}; for sel in string.gmatch(msg, "([^,]+)") do
-        print("CHAT_SELECTION : "..sel); table.insert(Maines_Chat_Options, sel)
+    msg = msg and strtrim(msg) or ""
+    local filter = Maines_GetChatFilter()
+
+    if msg == "" then
+        wipe(filter)
+        print("|cFF00FF00Maines|r: chat filter cleared — tagging all channels (including Communities)")
+        return
     end
-    _G["Maines_Chat_Options_DB"] = Maines_Chat_Options
-    ReloadUI()
+
+    if msg:lower() == "list" then
+        if #filter == 0 then
+            print("|cFF00FF00Maines|r: no filter set — tagging all channels")
+        else
+            print("|cFF00FF00Maines|r: tagging channels: "..table.concat(filter, ", "))
+        end
+        return
+    end
+
+    local op, sel = msg:match("^([%+%-])(%u[%u_]*)$")
+    if op then
+        if op == "+" then
+            local exists = false
+            for _, v in ipairs(filter) do if v == sel then exists = true; break end end
+            if not exists then table.insert(filter, sel) end
+            print("|cFF00FF00Maines|r: added "..sel.." to filter")
+        else
+            for i, v in ipairs(filter) do
+                if v == sel then table.remove(filter, i); break end
+            end
+            print("|cFF00FF00Maines|r: removed "..sel.." from filter")
+        end
+        return
+    end
+
+    wipe(filter)
+    for sel in string.gmatch(msg, "([^,]+)") do
+        table.insert(filter, sel)
+    end
+    print("|cFF00FF00Maines|r: tagging channels: "..table.concat(filter, ", "))
 end
 
 -- Chat formatting:
@@ -244,6 +367,57 @@ SlashCmdList["MAINDEBUG"] = function()
     print("|cFF00FF00Maines debug|r: "..(Maines_Debug and "ON" or "OFF"))
 end
 
+-- Gently spins the minimap icon's texture forever, purely for fun.
+local function Maines_AnimateMinimapButton(button)
+    if not button or not button.icon or button.maines_anim then return end
+    local ag = button.icon:CreateAnimationGroup()
+    local rot = ag:CreateAnimation("Rotation")
+    rot:SetDegrees(360)
+    rot:SetDuration(8)
+    rot:SetSmoothing("IN_OUT")
+    ag:SetLooping("REPEAT")
+    ag:Play()
+    button.maines_anim = ag
+end
+
+function maines:SetupMinimapIcon()
+    local ldb = LibStub("LibDataBroker-1.1", true)
+    local icon = LibStub("LibDBIcon-1.0", true)
+    if not (ldb and icon) then return end
+
+    Maines_DB = Maines_DB or {}
+    Maines_DB.minimap = Maines_DB.minimap or { hide = false }
+
+    local dataObject = ldb:NewDataObject("Maines", {
+        type = "launcher",
+        text = "Maines",
+        icon = "Interface\\Addons\\Maines\\img\\maines_minimap_icon",
+        OnClick = function(_, button)
+            if button == "LeftButton" then
+                SlashCmdList["MAINES"]()
+            elseif button == "RightButton" then
+                SlashCmdList["MAINCOLOR"]()
+            end
+        end,
+        OnTooltipShow = function(tooltip)
+            tooltip:AddLine("Maines")
+            tooltip:AddLine("|cFFFFFFFFLeft-click|r to open Maines")
+            tooltip:AddLine("|cFFFFFFFFRight-click|r to recolor (/maincolor)")
+        end,
+    })
+
+    icon:Register("Maines", dataObject, Maines_DB.minimap)
+    -- Register() defers actual button creation when db.hide is true (stashed in an internal
+    -- "notCreated" table instead), so GetMinimapButton() can return nil right here for anyone
+    -- who previously hid the icon. Refresh() forces creation while still respecting db.hide.
+    icon:Refresh("Maines", Maines_DB.minimap)
+    local button = icon:GetMinimapButton("Maines")
+    if button then
+        table.insert(Maines_Textures, button.icon)
+        Maines_AnimateMinimapButton(button)
+    end
+end
+
 function maines:OnInitialize()
     -- Classic clients may have a backported EventRegistry table that never fires this
     -- event, so gate on the actual client build rather than just table presence.
@@ -261,6 +435,8 @@ function maines:OnInitialize()
         self:RawHook("ChatEdit_SendText", true)
         print("|cFF00FF00Maines|r: chat hook active (ChatEdit_SendText)")
     end
+
+    self:SetupMinimapIcon()
 end
 
 function maines:ChatEdit_SendText(editBox, addHistory)
@@ -344,6 +520,15 @@ Maines_Option_Panel_BG:SetSize(512, 512)
 Maines_Option_Panel_BG.tex = Maines_Option_Panel_BG:CreateTexture()
 Maines_Option_Panel_BG.tex:SetAllPoints(Maines_Option_Panel_BG)
 Maines_Option_Panel_BG.tex:SetTexture("Interface\\Addons\\Maines\\img\\maines_option_panel_bg")
+
+-- Register every UI texture so /maincolor can repaint them all at once.
+for _, tex in ipairs({
+    maines_frame.tex, maines_header_frame.tex, maines_command_frame.tex,
+    maines_option_frame.tex, maines_stamp_frame.tex, maines_close_button_texture,
+    Maines_Option_Panel_BG.tex,
+}) do
+    table.insert(Maines_Textures, tex)
+end
 
 -- You may add the rest of your custom texture, scrollframe, and editbox logic here as needed.
 -- All UI logic and slash commands now work in Classic.
