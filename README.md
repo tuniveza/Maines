@@ -8,6 +8,13 @@ style of your choice, so guildies/friends know who's really talking even when yo
 Compatible with modern retail WoW (Interface 12.1.0 — *Midnight*). Chat tagging was broken by
 Midnight's rearchitecture of outgoing chat and has been fixed — see **Status** below.
 
+## Installation
+
+Grab the zip from the **[Releases page](https://github.com/tuniveza/Maines/releases/latest)**,
+not the green "Code" button's Download ZIP — that one names the folder `Maines-main`, which
+WoW won't recognize as a valid addon folder. The Releases zip is prebuilt so it extracts to a
+folder already named `Maines`; just drag that straight into your `Interface/AddOns/` folder.
+
 ## Quick Start
 
 1. `/mains Misamu (` — sets your main name to "Misamu" with `(` `)` brackets.
