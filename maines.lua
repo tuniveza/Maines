@@ -487,6 +487,7 @@ SlashCmdList["MAINHELP"] = function()
 
     print(("%s |cFFFFD100Maines — Command Reference|r %s"):format(
         icon("INV_Misc_QuestionMark"), icon("INV_Misc_QuestionMark")))
+    print(" ")
 
     for _, section in ipairs(Help_Sections) do
         print(("|cFF%s%s|r"):format(section.color, section.title))
@@ -498,6 +499,7 @@ SlashCmdList["MAINHELP"] = function()
             if e.note then
                 print("      |cFF666666note:|r |cFF999999"..e.note.."|r")
             end
+            print(" ")
         end
     end
 
