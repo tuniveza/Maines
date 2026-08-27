@@ -37,6 +37,7 @@
     <NEW> /maincolor - paints the Maines UI textures a random color from a random public-domain art palette
     <NEW> /mainmap - toggle the Maines minimap icon on/off
     <NEW> /mainhide / /mainshow - choose whether the tag is suppressed when you're playing your own main (default: hidden)
+    <NEW> /mainhelp - colored, icon-illustrated reference for every command above, grouped by category with usage examples
     /mainmusic - to reset the maines introduction music upon first open
     /mainstamp - to see stamp (version) of maines
 
@@ -45,9 +46,6 @@
     Graphical User Interface Improvements *ENTIRE RE-WORK -_-*
     Aesthetic Brackets
     Aesthetic Features
-
-    SLASH COMMANDS:
-    /mainhelp - a way to see all the commands for maines
     =========================
 
     Common And Solved Problems:
@@ -401,6 +399,109 @@ SlashCmdList["MAINSHOW"] = function()
     Maines_HideOnMain_DB = false
     print("|cFF00FF00Maines|r: when playing your main ("..tostring(_G["Maines_Name_DB"] or "not set")..
         "), the tag will |cFFFFE4B5still show|r (switch back with /mainhide)")
+end
+
+-- /mainhelp: a colored, icon-illustrated command reference grouped by what each command does,
+-- with a usage line and a worked example per entry so nobody has to dig through the README.
+local Help_Sections = {
+    {
+        title = "Setting Up Your Main",
+        color = "FF69B4",
+        entries = {
+            {icon = "INV_Misc_Note_01", cmd = "/mains", args = "<name> <bracket>",
+                desc = "Set your main's name and bracket style.",
+                example = "/mains Misamu (  ->  tags chat as (Misamu)"},
+            {icon = "INV_Misc_Spyglass_03", cmd = "/main", args = "",
+                desc = "Print your currently saved main name and bracket.",
+                example = "/main"},
+            {icon = "INV_Misc_Gem_02", cmd = "/bracket", args = "",
+                desc = "List every built-in bracket style by name.",
+                example = "/bracket"},
+        },
+    },
+    {
+        title = "On Your Main vs. an Alt",
+        color = "3CE7FF",
+        entries = {
+            {icon = "INV_Misc_QuestionMark", cmd = "/mainhide", args = "",
+                desc = "Hide the tag while you're playing your own main. (default)",
+                example = "/mainhide", note = "Alts are always tagged either way - this only affects the main itself."},
+            {icon = "INV_Misc_QuestionMark", cmd = "/mainshow", args = "",
+                desc = "Always tag, even while playing your own main.",
+                example = "/mainshow"},
+        },
+    },
+    {
+        title = "Chat Channel Filtering",
+        color = "77DD77",
+        entries = {
+            {icon = "INV_Letter_15", cmd = "/mainchat", args = "SAY,GUILD,...",
+                desc = "Only tag the listed channels (capital letters, comma-separated).",
+                example = "/mainchat SAY,GUILD,PARTY"},
+            {icon = "INV_Letter_15", cmd = "/mainchat", args = "(no args)",
+                desc = "Clear the filter - back to tagging every channel.",
+                example = "/mainchat"},
+            {icon = "INV_Letter_15", cmd = "/mainchat", args = "list",
+                desc = "Print the channels currently in the filter.",
+                example = "/mainchat list"},
+            {icon = "INV_Letter_15", cmd = "/mainchat", args = "+CHANNEL / -CHANNEL",
+                desc = "Add or remove one channel without retyping the whole list.",
+                example = "/mainchat -WHISPER", note = "Handy if another addon already tags your whispers."},
+        },
+    },
+    {
+        title = "Cosmetic & Minimap",
+        color = "FFA500",
+        entries = {
+            {icon = "INV_Misc_Dice_01", cmd = "/maincolor", args = "",
+                desc = "Repaint the Maines UI with a random public-domain art palette.",
+                example = "/maincolor", note = "Also triggered by right-clicking the minimap icon."},
+            {icon = "INV_Misc_Map_01", cmd = "/mainmap", args = "",
+                desc = "Toggle the Maines minimap icon on/off.",
+                example = "/mainmap"},
+            {icon = "INV_Misc_Gear_08", cmd = "/maines", args = "",
+                desc = "Open the Maines UI (same as left-clicking the minimap icon).",
+                example = "/maines"},
+            {icon = "INV_Misc_Drum_01", cmd = "/mainmusic", args = "",
+                desc = "Replay the intro jingle next time you open the UI.",
+                example = "/mainmusic"},
+        },
+    },
+    {
+        title = "Utility",
+        color = "AAAAAA",
+        entries = {
+            {icon = "INV_Misc_Coin_02", cmd = "/mainstamp", args = "",
+                desc = "Print the current build stamp.",
+                example = "/mainstamp"},
+            {icon = "INV_Misc_Bag_10", cmd = "/maindebug", args = "",
+                desc = "Toggle live debug printing of every tagging decision.",
+                example = "/maindebug", note = "Turn this on first if tagging ever silently stops working."},
+        },
+    },
+}
+
+SLASH_MAINHELP1 = "/mainhelp"
+SlashCmdList["MAINHELP"] = function()
+    local function icon(tex) return ("|TInterface\\Icons\\%s:16:16:-1:0|t"):format(tex) end
+
+    print(("%s |cFFFFD100Maines — Command Reference|r %s"):format(
+        icon("INV_Misc_QuestionMark"), icon("INV_Misc_QuestionMark")))
+
+    for _, section in ipairs(Help_Sections) do
+        print(("|cFF%s%s|r"):format(section.color, section.title))
+        for _, e in ipairs(section.entries) do
+            local header = e.args ~= "" and (e.cmd.." |cFFFFFFFF"..e.args.."|r") or e.cmd
+            print(("  %s |cFF%s%s|r"):format(icon(e.icon), section.color, header))
+            print("      |cFFCCCCCC"..e.desc.."|r")
+            print("      |cFF888888e.g.|r |cFFEEEEEE"..e.example.."|r")
+            if e.note then
+                print("      |cFF666666note:|r |cFF999999"..e.note.."|r")
+            end
+        end
+    end
+
+    print("|cFFFFD100Full write-up with tables and more detail lives in the addon's README.|r")
 end
 
 -- Gently spins the minimap icon's texture forever, purely for fun.

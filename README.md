@@ -108,6 +108,14 @@ to reset that, so it plays again next time you `/maines`.
 Prints the current build stamp ("The Radial Stamp [ ∂ ]"). Maines uses stamps instead of
 alpha/beta/release version numbers.
 
+### In-game command reference — `/mainhelp`
+
+Prints a colored, icon-illustrated reference for every command above, grouped by category
+(Setting Up Your Main, On Your Main vs. an Alt, Chat Channel Filtering, Cosmetic & Minimap,
+Utility) with a plain-English description and a worked example for each — so you don't have to
+alt-tab to this README to remember the syntax. Contextual notes are included where relevant
+(e.g. that `/mainchat -WHISPER` is handy if another addon already tags your whispers).
+
 ### Debugging — `/maindebug`
 
 Toggles verbose debug printing of every tagging decision as you type: detected chat type, your
