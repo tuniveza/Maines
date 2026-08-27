@@ -1,5 +1,5 @@
 ## Interface: 120100
-## Version: OBSERVATOR
+## Version: RADIAL
 ## Title: Maines
 ## Notes: Plaster Your Main Name To Chat Frame in Style
 ## Author: Universa / Dominic Hughes
