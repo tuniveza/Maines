@@ -394,7 +394,7 @@ SlashCmdList["MAINONMAIN"] = function(msg)
     msg = msg and strtrim(strlower(msg)) or ""
     if msg == "hide" then
         Maines_HideOnMain_DB = true
-    elseif msg == "tag" or msg == "show" then
+    elseif msg == "tag" then
         Maines_HideOnMain_DB = false
     elseif msg ~= "" then
         print("|cFF00FF00Maines|r: usage: /mainonmain hide | tag")
