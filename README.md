@@ -19,11 +19,16 @@ Midnight's rearchitecture of outgoing chat and has been fixed — see **Status**
 > button here is a plain solid color — no hand-painted art yet. See the "Opening the UI —
 > `/maines`" section further down for what's actually still to come.
 
-<p align="center">
-  <img src="docs/gui-main-tab.png" width="420" alt="Maines GUI — Main tab: name box, live-previewing bracket buttons, custom bracket fields, and a chat preview line">
-  &nbsp;&nbsp;
-  <img src="docs/gui-filter-tab.png" width="420" alt="Maines GUI — Filter tab: a checkbox per chat channel, include/exclude mode buttons, sticky toggle, and a status line">
-</p>
+<table align="center">
+  <tr>
+    <td align="center">
+      <img src="docs/gui-main-tab.png" width="380" alt="Maines GUI — Main tab: name box, live-previewing bracket buttons, custom bracket fields, and a chat preview line">
+    </td>
+    <td align="center">
+      <img src="docs/gui-filter-tab.png" width="380" alt="Maines GUI — Filter tab: a checkbox per chat channel, include/exclude mode buttons, sticky toggle, and a status line">
+    </td>
+  </tr>
+</table>
 
 ## Installation
 
