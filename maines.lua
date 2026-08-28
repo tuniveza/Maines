@@ -163,10 +163,16 @@
     code that fails at runtime) against a stub WoW environment with `time` left
     undefined, which reproduced the identical crash at the identical line, and
     by re-running after removing the call, which then loaded clean. The
-    randomseed call has been removed outright rather than swapped for another
-    guessed-at API - it was purely cosmetic. Lesson: don't add "should be fine"
-    top-level API calls without verifying them; anything at file scope (outside
-    every function) takes the whole addon down if it's wrong.
+    randomseed call was removed outright rather than swapped for another
+    guessed-at API in the moment. Permanent fix, once things were stable again:
+    reintroduced it using GetTime() (a core, always-available WoW timer API,
+    unlike the apparently-absent time()) wrapped in pcall(), so that even if
+    THIS assumption ever turns out wrong too, the failure is caught and
+    swallowed right there instead of aborting the rest of the file. Lesson:
+    don't add "should be fine" top-level API calls without verifying them, and
+    wrap anything cosmetic/non-essential that runs at file scope (outside every
+    function) in pcall so a bad assumption can never take the whole addon down
+    again.
 
     STILL TO DO:
     - Aesthetic / GUI rework (see NEXT FEATURES TO IMPLEMENT above - still applies)
@@ -174,6 +180,12 @@
 
  ]]
 local maines = LibStub("AceAddon-3.0"):NewAddon("Maines","AceHook-3.0")
+
+-- Session-to-session variety for /maincolor. GetTime() (unlike the apparently-absent time())
+-- is a core WoW timer API that's about as safe a bet as they come, but this is purely cosmetic,
+-- so it's still pcall-wrapped: if that assumption is ever wrong too, the failure is swallowed
+-- right here instead of aborting the rest of the file the way the old time() call did.
+pcall(function() math.randomseed(GetTime() * 1000) end)
 
 local FontPath = [[Interface\AddOns\Maines\fonts\adventure\Adventure.ttf]]
 
