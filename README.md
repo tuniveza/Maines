@@ -130,11 +130,16 @@ alpha/beta/release version numbers.
 
 ### In-game command reference — `/mainhelp`
 
-Prints a colored, icon-illustrated reference for every command above, grouped by category
-(Setting Up Your Main, On Your Main vs. an Alt, Chat Channel Filtering, Cosmetic & Minimap,
-Utility) with a plain-English description and a worked example for each — so you don't have to
-alt-tab to this README to remember the syntax. Contextual notes are included where relevant
-(e.g. that `/mainchat -WHISPER` is handy if another addon already tags your whispers).
+Opens a movable, scrollable reference window (dressed in the same parchment art as the rest of
+the addon) instead of spamming chat — a small illustrative graphic showing what a tagged message
+looks like, then every command above grouped by category (Setting Up Your Main, On Your Main vs.
+an Alt, Chat Channel Filtering, Cosmetic & Minimap, Utility) with an icon, a plain-English
+description, and a worked example for each. Press `Escape`, or click the close button, to dismiss
+it. Contextual notes are included where relevant (e.g. that `/mainchat -WHISPER` is handy if
+another addon already tags your whispers).
+
+Prefer plain chat instead (e.g. to copy/paste a command)? Run `/mainhelp text` for the original
+chat-printed version.
 
 ### Debugging — `/maindebug`
 
@@ -170,6 +175,9 @@ prints — the `clubId` line confirms whether Maines even recognized it as commu
   instead, which works no matter how many communities you're in.
 - **On-main detection:** Maines now knows whether you're playing the character set as your main
   and, by default, skips tagging in that case — see `/mainhide` / `/mainshow` above to change it.
+- **`/mainhelp` is now a window, not a chat dump:** a movable, scrollable panel with an icon per
+  command and an illustrative example graphic, built from the same data as the chat version
+  (still available via `/mainhelp text`).
 - **Still needed:** an aesthetic/GUI rework — the frames, brackets, and textures are still the
   original placeholder art and haven't been touched (though `/maincolor` at least makes them
   more colorful in the meantime).

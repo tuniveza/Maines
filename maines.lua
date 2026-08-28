@@ -37,7 +37,7 @@
     <NEW> /maincolor - paints the Maines UI textures a random color from a random public-domain art palette
     <NEW> /mainmap - toggle the Maines minimap icon on/off
     <NEW> /mainhide / /mainshow - choose whether the tag is suppressed when you're playing your own main (default: hidden)
-    <NEW> /mainhelp - colored, icon-illustrated reference for every command above, grouped by category with usage examples
+    <NEW> /mainhelp - opens a movable, scrollable command reference window (icons, an example graphic, grouped by category) - "/mainhelp text" prints the old chat version instead
     /mainmusic - to reset the maines introduction music upon first open
     /mainstamp - to see stamp (version) of maines
 
@@ -117,6 +117,19 @@
     always tagging, even on your main; /mainhide restores the default. Alts
     are always tagged regardless of this setting - it only changes what happens
     when the main itself is the one logged in.
+
+    ==========================================
+    /mainhelp IS NOW A WINDOW
+    ==========================================
+    /mainhelp used to dump ~40 lines into chat every time. It now opens a
+    movable, scrollable panel dressed in the addon's own parchment art (bg.tga,
+    closebutton.tga) instead of Blizzard's default chrome, built from the exact
+    same Help_Sections data as before - same icons, descriptions, and examples,
+    just laid out as widgets instead of print()s. A small graphic at the top
+    illustrates what a tagged message looks like (img/mainhelp_example.tga) -
+    it's a generated mockup, not a captured screenshot, and is captioned as such.
+    /mainhelp text still prints the original chat version for anyone who wants
+    something copyable.
 
     STILL TO DO:
     - Aesthetic / GUI rework (see NEXT FEATURES TO IMPLEMENT above - still applies)
@@ -508,19 +521,22 @@ local Help_Sections = {
     },
 }
 
-SLASH_MAINHELP1 = "/mainhelp"
-SlashCmdList["MAINHELP"] = function()
-    local function icon(tex) return ("|TInterface\\Icons\\%s:16:16:-1:0|t"):format(tex) end
+local function Maines_HelpIcon(tex, size)
+    return ("|TInterface\\Icons\\%s:%d:%d:-1:0|t"):format(tex, size or 16, size or 16)
+end
 
+-- Chat fallback: the original print-based reference, kept behind "/mainhelp text" for anyone
+-- who wants a copyable/scrollable-in-chat version instead of the window below.
+local function Maines_PrintHelpToChat()
     print(("%s |cFFFFD100Maines — Command Reference|r %s"):format(
-        icon("INV_Misc_QuestionMark"), icon("INV_Misc_QuestionMark")))
+        Maines_HelpIcon("INV_Misc_QuestionMark"), Maines_HelpIcon("INV_Misc_QuestionMark")))
     print(" ")
 
     for _, section in ipairs(Help_Sections) do
         print(("|cFF%s%s|r"):format(section.color, section.title))
         for _, e in ipairs(section.entries) do
             local header = e.args ~= "" and (e.cmd.." |cFFFFFFFF"..e.args.."|r") or e.cmd
-            print(("  %s |cFF%s%s|r"):format(icon(e.icon), section.color, header))
+            print(("  %s |cFF%s%s|r"):format(Maines_HelpIcon(e.icon), section.color, header))
             print("      |cFFCCCCCC"..e.desc.."|r")
             print("      |cFF888888e.g.|r |cFFEEEEEE"..e.example.."|r")
             if e.note then
@@ -531,6 +547,126 @@ SlashCmdList["MAINHELP"] = function()
     end
 
     print("|cFFFFD100Full write-up with tables and more detail lives in the addon's README.|r")
+end
+
+-- /mainhelp window: a movable, scrollable reference panel built from the same Help_Sections
+-- data as the chat version above, dressed in the addon's own parchment art instead of Blizzard
+-- chrome. Content is a fixed-width column of FontStrings (one per section header, one per
+-- command) chained top-to-bottom with GetStringHeight(), which is reliable even before the
+-- frame has ever been shown - unlike GetTop()/GetBottom(), which can be unresolved on a frame
+-- that's never been laid out yet.
+local HELP_CONTENT_WIDTH = 430
+local HELP_EXAMPLE_ASPECT = 290 / 920
+
+local Help_Frame = CreateFrame("Frame", "Maines_Help_Frame", UIParent)
+Help_Frame:SetSize(520, 620)
+Help_Frame:SetPoint("CENTER")
+Help_Frame:SetFrameStrata("DIALOG")
+Help_Frame:SetMovable(true)
+Help_Frame:EnableMouse(true)
+Help_Frame:RegisterForDrag("LeftButton")
+Help_Frame:SetScript("OnDragStart", Help_Frame.StartMoving)
+Help_Frame:SetScript("OnDragStop", Help_Frame.StopMovingOrSizing)
+Help_Frame:SetPropagateKeyboardInput(true)
+Help_Frame:SetScript("OnKeyDown", function(self, key)
+    if key == "ESCAPE" then self:Hide() end
+end)
+Help_Frame:Hide()
+
+Help_Frame.bg = Help_Frame:CreateTexture(nil, "BACKGROUND")
+Help_Frame.bg:SetAllPoints()
+Help_Frame.bg:SetTexture("Interface\\Addons\\Maines\\img\\bg")
+table.insert(Maines_Textures, Help_Frame.bg)
+
+Help_Frame.title = Help_Frame:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
+Help_Frame.title:SetPoint("TOP", 0, -24)
+Help_Frame.title:SetText("Maines — Command Reference")
+Help_Frame.title:SetTextColor(0.96, 0.87, 0.65)
+
+local helpClose = CreateFrame("Button", nil, Help_Frame)
+helpClose:SetPoint("TOPRIGHT", -20, -20)
+helpClose:SetSize(32, 32)
+local helpCloseTex = helpClose:CreateTexture()
+helpCloseTex:SetTexture("Interface\\Addons\\Maines\\img\\closebutton")
+helpCloseTex:SetAllPoints()
+helpClose:SetNormalTexture(helpCloseTex)
+helpClose:SetScript("OnClick", function() Help_Frame:Hide() end)
+table.insert(Maines_Textures, helpCloseTex)
+
+local helpPanel = CreateFrame("Frame", nil, Help_Frame, "BackdropTemplate")
+helpPanel:SetPoint("TOPLEFT", 26, -78)
+helpPanel:SetPoint("BOTTOMRIGHT", -26, 22)
+helpPanel:SetBackdrop({
+    bgFile = "Interface\\Buttons\\WHITE8X8",
+    edgeFile = "Interface\\Buttons\\WHITE8X8",
+    edgeSize = 1,
+})
+helpPanel:SetBackdropColor(0.07, 0.05, 0.03, 0.82)
+helpPanel:SetBackdropBorderColor(0.55, 0.42, 0.24, 0.9)
+
+local helpScroll = CreateFrame("ScrollFrame", "Maines_Help_ScrollFrame", helpPanel, "UIPanelScrollFrameTemplate")
+helpScroll:SetPoint("TOPLEFT", 10, -10)
+helpScroll:SetPoint("BOTTOMRIGHT", -28, 10)
+
+local helpContent = CreateFrame("Frame", "Maines_Help_ScrollChild", helpScroll)
+helpContent:SetWidth(HELP_CONTENT_WIDTH)
+helpContent:SetHeight(1)
+helpScroll:SetScrollChild(helpContent)
+
+local function Maines_BuildHelpContent()
+    if Help_Frame.built then return end
+    Help_Frame.built = true
+
+    local y = -6
+
+    local exampleTex = helpContent:CreateTexture(nil, "ARTWORK")
+    exampleTex:SetPoint("TOPLEFT", 6, y)
+    exampleTex:SetSize(HELP_CONTENT_WIDTH - 12, (HELP_CONTENT_WIDTH - 12) * HELP_EXAMPLE_ASPECT)
+    exampleTex:SetTexture("Interface\\Addons\\Maines\\img\\mainhelp_example")
+    y = y - exampleTex:GetHeight() - 22
+
+    for _, section in ipairs(Help_Sections) do
+        local header = helpContent:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+        header:SetPoint("TOPLEFT", 6, y)
+        header:SetJustifyH("LEFT")
+        header:SetText(section.title)
+        local r, g, b = Maines_HexToRGB(section.color)
+        header:SetTextColor(r, g, b)
+        y = y - header:GetStringHeight() - 10
+
+        for _, e in ipairs(section.entries) do
+            local entryFS = helpContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            entryFS:SetPoint("TOPLEFT", 6, y)
+            entryFS:SetWidth(HELP_CONTENT_WIDTH - 12)
+            entryFS:SetJustifyH("LEFT")
+
+            local cmdLine = e.args ~= "" and (e.cmd.." |cFFFFFFFF"..e.args.."|r") or e.cmd
+            local text = Maines_HelpIcon(e.icon, 18).." |cFF"..section.color..cmdLine.."|r\n"
+                .."     |cFFCCCCCC"..e.desc.."|r\n"
+                .."     |cFF888888e.g.|r |cFFEEEEEE"..e.example.."|r"
+            if e.note then
+                text = text.."\n     |cFF666666note:|r |cFF999999"..e.note.."|r"
+            end
+            entryFS:SetText(text)
+
+            y = y - entryFS:GetStringHeight() - 14
+        end
+
+        y = y - 8
+    end
+
+    helpContent:SetHeight(-y + 10)
+end
+
+SLASH_MAINHELP1 = "/mainhelp"
+SlashCmdList["MAINHELP"] = function(msg)
+    msg = msg and strtrim(msg):lower() or ""
+    if msg == "text" or msg == "chat" then
+        Maines_PrintHelpToChat()
+        return
+    end
+    Maines_BuildHelpContent()
+    Help_Frame:Show()
 end
 
 -- Gently spins the minimap icon's texture forever, purely for fun.
