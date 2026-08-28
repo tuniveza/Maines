@@ -191,6 +191,15 @@ prints — the `clubId` line confirms whether Maines even recognized it as commu
   full-reset branch and replaced your entire filter with one bogus, unmatchable entry, silently
   disabling all tagging. Everything is now uppercased and trimmed before matching, so case and
   stray whitespace no longer matter.
+- **Fixed a total load failure ("nothing works, every command is unknown"):** a stray
+  `math.randomseed(time())` — added purely so `/maincolor` felt less repetitive across sessions —
+  ran immediately at file load rather than inside a function. `time()` isn't available as a
+  global in this client, so it threw right there, and Lua aborts the rest of the file on an
+  unhandled error — meaning no frames were ever created and no slash command ever got registered.
+  Confirmed by actually executing `maines.lua` against a stub WoW environment (not just
+  syntax-checking it) with `time` left undefined, which reproduced the exact crash, and again
+  after removing the call, which then loaded clean. Removed outright rather than swapped for
+  another guessed-at timing API, since it was cosmetic only.
 - **Still needed:** an aesthetic/GUI rework — the frames, brackets, and textures are still the
   original placeholder art and haven't been touched (though `/maincolor` at least makes them
   more colorful in the meantime).

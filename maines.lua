@@ -149,14 +149,31 @@
     added. /mainchat now uppercases and trims every entry before matching, so
     case and stray whitespace no longer matter.
 
+    ==========================================
+    TOTAL LOAD FAILURE: time() IS NOT AVAILABLE
+    ==========================================
+    Reported as "won't show at all" - every single slash command gone, not just
+    one feature. Cause: a `math.randomseed(time())` call (added purely for
+    /maincolor variety across sessions) sat as a bare top-level statement, not
+    inside any function, so it ran immediately at file load. `time` is nil in
+    this client, so that call threw immediately - and since Lua aborts the rest
+    of a chunk on an unhandled error, EVERYTHING after that line never executed:
+    no frames, no slash command registrations, nothing. Confirmed by actually
+    running maines.lua (not just syntax-checking it - luac -p happily accepts
+    code that fails at runtime) against a stub WoW environment with `time` left
+    undefined, which reproduced the identical crash at the identical line, and
+    by re-running after removing the call, which then loaded clean. The
+    randomseed call has been removed outright rather than swapped for another
+    guessed-at API - it was purely cosmetic. Lesson: don't add "should be fine"
+    top-level API calls without verifying them; anything at file scope (outside
+    every function) takes the whole addon down if it's wrong.
+
     STILL TO DO:
     - Aesthetic / GUI rework (see NEXT FEATURES TO IMPLEMENT above - still applies)
     - General visual polish pass on frames, brackets, textures
 
  ]]
 local maines = LibStub("AceAddon-3.0"):NewAddon("Maines","AceHook-3.0")
-
-math.randomseed(time())
 
 local FontPath = [[Interface\AddOns\Maines\fonts\adventure\Adventure.ttf]]
 
