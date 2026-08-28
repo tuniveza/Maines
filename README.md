@@ -81,10 +81,14 @@ leader-broadcast variants). Use `/mainchat` to narrow that down:
 | Command | Effect |
 |---|---|
 | `/mainchat` (no arguments) | Clears the filter — back to tagging everything |
-| `/mainchat SAY,GUILD,PARTY` | Only tag these channels (comma-separated, **capital letters required**) |
+| `/mainchat SAY,GUILD,PARTY` | Only tag these channels (comma-separated) |
 | `/mainchat list` | Print the channels currently in the filter |
 | `/mainchat +WHISPER` | Add a single channel to the existing filter, without retyping the rest |
 | `/mainchat -WHISPER` | Remove a single channel from the existing filter |
+
+Case and spacing don't matter — `say, guild` and `SAY,GUILD` behave identically; everything is
+normalized before matching. (Earlier versions silently mismatched on either, which made the
+filter look broken — see **Status** below.)
 
 Valid channel names: `SAY`, `YELL`, `EMOTE`, `PARTY`, `PARTY_LEADER`, `RAID`, `RAID_LEADER`,
 `RAID_WARNING`, `INSTANCE_CHAT`, `INSTANCE_CHAT_LEADER`, `GUILD`, `OFFICER`, `WHISPER`,
@@ -177,7 +181,16 @@ prints — the `clubId` line confirms whether Maines even recognized it as commu
   and, by default, skips tagging in that case — see `/mainhide` / `/mainshow` above to change it.
 - **`/mainhelp` is now a window, not a chat dump:** a movable, scrollable panel with an icon per
   command and an illustrative example graphic, built from the same data as the chat version
-  (still available via `/mainhelp text`).
+  (still available via `/mainhelp text`), rendered on a seamless parchment-tile background so it
+  matches the rest of the addon's art instead of a flat dark box.
+- **The minimap icon now toggles the window** on left-click instead of only ever opening it.
+- **`/mainchat` filtering was silently broken:** comma-separated entries were never trimmed or
+  case-normalized, so `SAY, GUILD` (a space after the comma) produced a filter entry `" GUILD"`
+  that could never match the real chat type again — anything past the first channel in a list
+  silently stopped working. A mistyped `+whisper` (lowercase) was worse: it fell through to the
+  full-reset branch and replaced your entire filter with one bogus, unmatchable entry, silently
+  disabling all tagging. Everything is now uppercased and trimmed before matching, so case and
+  stray whitespace no longer matter.
 - **Still needed:** an aesthetic/GUI rework — the frames, brackets, and textures are still the
   original placeholder art and haven't been touched (though `/maincolor` at least makes them
   more colorful in the meantime).

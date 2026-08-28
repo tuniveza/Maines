@@ -28,7 +28,7 @@
     /maines - to open the maines user interfaces
 
     [extra] slash commands:
-    <NEW> /mainchat - [/mainchat SAY,WHISPER,GUILD,DND] - capital letters and comma seperation are a must
+    <NEW> /mainchat - [/mainchat SAY,WHISPER,GUILD,DND] - comma separated; case and spacing no longer matter, "say, guild" works fine
     <NEW> /mainchat list        -- print the currently active channel filter
     <NEW> /mainchat +CHANNEL    -- add a single channel to the existing filter
     <NEW> /mainchat -CHANNEL    -- remove a single channel from the existing filter
@@ -56,8 +56,9 @@
     
     /mainchat SAY,WHISPER,GULID,DND then press enter
 
-    NOTE: capital letters on channel names is mandatory
-    
+    NOTE: case and spacing don't matter any more - "say, whisper" is normalized the same
+    as "SAY,WHISPER" internally, so typos in casing won't silently break the filter.
+
     This will make it so your main name is only in the channels typed in and so you can just stop it from showing in the whisper this way; because you specified which channels to filter out or in and or however it works *need to check it*.
 
     IT WORKS; try it and experiment....
@@ -131,12 +132,31 @@
     /mainhelp text still prints the original chat version for anyone who wants
     something copyable.
 
+    ==========================================
+    /mainchat FILTERING WAS SILENTLY BROKEN
+    ==========================================
+    Reported as "filtering doesn't seem to do anything, using multiple channel
+    names has issues." Root cause: entries from a comma-separated list were never
+    trimmed or case-normalized. "/mainchat SAY, GUILD" (a space after the comma,
+    completely natural to type) produced the filter entries "SAY" and " GUILD" -
+    that leading space meant " GUILD" could never equal the real chatType
+    "GUILD" again, so anything after the first channel silently stopped working.
+    Lowercase input broke things worse: the +CHANNEL/-CHANNEL add/remove pattern
+    required exact uppercase, so a mistyped "+whisper" fell through to the
+    full-reset branch instead, wiping the whole filter and replacing it with one
+    bogus "+WHISPER" entry (plus sign included) that could never match any real
+    chatType - silently killing ALL tagging, not just the one channel being
+    added. /mainchat now uppercases and trims every entry before matching, so
+    case and stray whitespace no longer matter.
+
     STILL TO DO:
     - Aesthetic / GUI rework (see NEXT FEATURES TO IMPLEMENT above - still applies)
     - General visual polish pass on frames, brackets, textures
 
  ]]
 local maines = LibStub("AceAddon-3.0"):NewAddon("Maines","AceHook-3.0")
+
+math.randomseed(time())
 
 local FontPath = [[Interface\AddOns\Maines\fonts\adventure\Adventure.ttf]]
 
@@ -258,6 +278,25 @@ SlashCmdList["MAINES"] = function()
     end
     _G["PlayedMusic_DB"] = "played"
 end
+
+-- Shared hide logic for the main window - used by the close button, Escape, and the minimap
+-- icon's toggle below, so there's one place that knows which frames make up "the window."
+local function Maines_HideMainWindow()
+    maines_close_button:Hide()
+    maines_frame:Hide()
+    maines_command_frame:Hide()
+    maines_stamp_frame:Hide()
+    maines_option_frame:Hide()
+end
+
+-- Minimap left-click: show/hide instead of only ever showing.
+local function Maines_ToggleMainWindow()
+    if maines_frame:IsShown() then
+        Maines_HideMainWindow()
+    else
+        SlashCmdList["MAINES"]()
+    end
+end
 SlashCmdList["MAINS"] = function(msg)
     local args = {}
     for token in string.gmatch(msg or "", "%S+") do table.insert(args, token) end
@@ -328,7 +367,16 @@ SlashCmdList["MAINCHAT"] = function(msg)
         return
     end
 
-    local op, sel = msg:match("^([%+%-])(%u[%u_]*)$")
+    -- Channel names are always uppercase (SAY, GUILD, ...), and this is the actual bug behind
+    -- "/mainchat doesn't do anything": entries were never trimmed or case-normalized, so
+    -- "SAY, GUILD" (a space after the comma - completely natural to type) silently produced
+    -- " GUILD" with a leading space, which then never matched the real chatType "GUILD" again.
+    -- Worse, a mistyped "+whisper" (lowercase) failed the old op pattern entirely and fell
+    -- through to the reset branch below, wiping the whole filter and replacing it with one
+    -- bogus "+WHISPER" entry that could never match anything - silently killing all tagging.
+    local normalized = msg:upper()
+
+    local op, sel = normalized:match("^([%+%-])%s*(%u[%u_]*)%s*$")
     if op then
         if op == "+" then
             local exists = false
@@ -345,10 +393,15 @@ SlashCmdList["MAINCHAT"] = function(msg)
     end
 
     wipe(filter)
-    for sel in string.gmatch(msg, "([^,]+)") do
-        table.insert(filter, sel)
+    for rawToken in normalized:gmatch("([^,]+)") do
+        local token = strtrim(rawToken)
+        if token ~= "" then table.insert(filter, token) end
     end
-    print("|cFF00FF00Maines|r: tagging channels: "..table.concat(filter, ", "))
+    if #filter == 0 then
+        print("|cFF00FF00Maines|r: no valid channel names found - filter left empty, tagging all channels")
+    else
+        print("|cFF00FF00Maines|r: tagging channels: "..table.concat(filter, ", "))
+    end
 end
 
 -- Chat formatting:
@@ -443,10 +496,14 @@ end
 
 -- /mainhelp: a colored, icon-illustrated command reference grouped by what each command does,
 -- with a usage line and a worked example per entry so nobody has to dig through the README.
+-- Each section carries two colors: "color" is tuned for the dark chat frame (used by
+-- Maines_PrintHelpToChat), "winColor" is a deeper equivalent tuned for the light parchment
+-- panel in the /mainhelp window, where the chat colors (esp. the cyan and gray) wash out.
 local Help_Sections = {
     {
         title = "Setting Up Your Main",
         color = "FF69B4",
+        winColor = "B23A72",
         entries = {
             {icon = "INV_Misc_Note_01", cmd = "/mains", args = "<name> <bracket>",
                 desc = "Set your main's name and bracket style.",
@@ -462,6 +519,7 @@ local Help_Sections = {
     {
         title = "On Your Main vs. an Alt",
         color = "3CE7FF",
+        winColor = "1B6E96",
         entries = {
             {icon = "INV_Misc_QuestionMark", cmd = "/mainhide", args = "",
                 desc = "Hide the tag while you're playing your own main. (default)",
@@ -474,9 +532,10 @@ local Help_Sections = {
     {
         title = "Chat Channel Filtering",
         color = "77DD77",
+        winColor = "2E7D32",
         entries = {
             {icon = "INV_Letter_15", cmd = "/mainchat", args = "SAY,GUILD,...",
-                desc = "Only tag the listed channels (capital letters, comma-separated).",
+                desc = "Only tag the listed channels (comma-separated - case and spacing don't matter).",
                 example = "/mainchat SAY,GUILD,PARTY"},
             {icon = "INV_Letter_15", cmd = "/mainchat", args = "(no args)",
                 desc = "Clear the filter - back to tagging every channel.",
@@ -492,6 +551,7 @@ local Help_Sections = {
     {
         title = "Cosmetic & Minimap",
         color = "FFA500",
+        winColor = "A8631B",
         entries = {
             {icon = "INV_Misc_Dice_01", cmd = "/maincolor", args = "",
                 desc = "Repaint the Maines UI with a random public-domain art palette.",
@@ -510,6 +570,7 @@ local Help_Sections = {
     {
         title = "Utility",
         color = "AAAAAA",
+        winColor = "5A5248",
         entries = {
             {icon = "INV_Misc_Coin_02", cmd = "/mainstamp", args = "",
                 desc = "Print the current build stamp.",
@@ -593,16 +654,21 @@ helpClose:SetNormalTexture(helpCloseTex)
 helpClose:SetScript("OnClick", function() Help_Frame:Hide() end)
 table.insert(Maines_Textures, helpCloseTex)
 
+-- A seamless, hand-tiled sand/parchment texture (img/parchment_tile.tga) instead of a flat
+-- color, so the scroll panel reads as part of the same parchment the rest of the addon uses
+-- rather than an unrelated dark box dropped on top of it.
 local helpPanel = CreateFrame("Frame", nil, Help_Frame, "BackdropTemplate")
 helpPanel:SetPoint("TOPLEFT", 26, -78)
 helpPanel:SetPoint("BOTTOMRIGHT", -26, 22)
 helpPanel:SetBackdrop({
-    bgFile = "Interface\\Buttons\\WHITE8X8",
+    bgFile = "Interface\\Addons\\Maines\\img\\parchment_tile",
     edgeFile = "Interface\\Buttons\\WHITE8X8",
+    tile = true,
+    tileSize = 128,
     edgeSize = 1,
 })
-helpPanel:SetBackdropColor(0.07, 0.05, 0.03, 0.82)
-helpPanel:SetBackdropBorderColor(0.55, 0.42, 0.24, 0.9)
+helpPanel:SetBackdropColor(1, 1, 1, 1)
+helpPanel:SetBackdropBorderColor(0.42, 0.30, 0.16, 1)
 
 local helpScroll = CreateFrame("ScrollFrame", "Maines_Help_ScrollFrame", helpPanel, "UIPanelScrollFrameTemplate")
 helpScroll:SetPoint("TOPLEFT", 10, -10)
@@ -626,11 +692,13 @@ local function Maines_BuildHelpContent()
     y = y - exampleTex:GetHeight() - 22
 
     for _, section in ipairs(Help_Sections) do
+        local winColor = section.winColor or section.color
+
         local header = helpContent:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
         header:SetPoint("TOPLEFT", 6, y)
         header:SetJustifyH("LEFT")
         header:SetText(section.title)
-        local r, g, b = Maines_HexToRGB(section.color)
+        local r, g, b = Maines_HexToRGB(winColor)
         header:SetTextColor(r, g, b)
         y = y - header:GetStringHeight() - 10
 
@@ -640,12 +708,12 @@ local function Maines_BuildHelpContent()
             entryFS:SetWidth(HELP_CONTENT_WIDTH - 12)
             entryFS:SetJustifyH("LEFT")
 
-            local cmdLine = e.args ~= "" and (e.cmd.." |cFFFFFFFF"..e.args.."|r") or e.cmd
-            local text = Maines_HelpIcon(e.icon, 18).." |cFF"..section.color..cmdLine.."|r\n"
-                .."     |cFFCCCCCC"..e.desc.."|r\n"
-                .."     |cFF888888e.g.|r |cFFEEEEEE"..e.example.."|r"
+            local cmdLine = e.args ~= "" and (e.cmd.." |cFF2A2118"..e.args.."|r") or e.cmd
+            local text = Maines_HelpIcon(e.icon, 18).." |cFF"..winColor..cmdLine.."|r\n"
+                .."     |cFF4A4030"..e.desc.."|r\n"
+                .."     |cFF8A7A63e.g.|r |cFF3A2A1E"..e.example.."|r"
             if e.note then
-                text = text.."\n     |cFF666666note:|r |cFF999999"..e.note.."|r"
+                text = text.."\n     |cFF8A7A63note:|r |cFF6B5F4D"..e.note.."|r"
             end
             entryFS:SetText(text)
 
@@ -696,14 +764,14 @@ function maines:SetupMinimapIcon()
         icon = "Interface\\Addons\\Maines\\img\\maines_minimap_icon",
         OnClick = function(_, button)
             if button == "LeftButton" then
-                SlashCmdList["MAINES"]()
+                Maines_ToggleMainWindow()
             elseif button == "RightButton" then
                 SlashCmdList["MAINCOLOR"]()
             end
         end,
         OnTooltipShow = function(tooltip)
             tooltip:AddLine("Maines")
-            tooltip:AddLine("|cFFFFFFFFLeft-click|r to open Maines")
+            tooltip:AddLine("|cFFFFFFFFLeft-click|r to show/hide Maines")
             tooltip:AddLine("|cFFFFFFFFRight-click|r to recolor (/maincolor)")
         end,
     })
@@ -800,22 +868,14 @@ maines_close_button_texture:SetAllPoints()
 maines_close_button:SetNormalTexture(maines_close_button_texture)
 maines_close_button:SetScript("OnClick", function(self, button, down)
     if button == "LeftButton" then
-        maines_close_button:Hide()
-        maines_frame:Hide()
-        maines_command_frame:Hide()
-        maines_stamp_frame:Hide()
-        maines_option_frame:Hide()
+        Maines_HideMainWindow()
     elseif button == "RightButton" then
         print("You clicked the right button")
     end
 end)
 maines_frame:SetScript("OnKeyDown", function(self, key)
     if key == "ESCAPE" then
-        maines_close_button:Hide()
-        maines_frame:Hide()
-        maines_command_frame:Hide()
-        maines_stamp_frame:Hide()
-        maines_option_frame:Hide()
+        Maines_HideMainWindow()
     end
 end)
 maines_frame:SetPropagateKeyboardInput(true)
