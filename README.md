@@ -1,6 +1,15 @@
-# Maines
+<p align="center">
+  <img src="img/maines_logo.png" width="140" alt="Maines logo — an illuminated manuscript-style letter M">
+</p>
 
-Take your main name to the chat frame, then gtfo.
+<h1 align="center">Maines</h1>
+<p align="center"><em>Take your main name to the chat frame, then gtfo.</em></p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/stamp-MOSAIC-8B5E3C" alt="Current stamp: MOSAIC">
+  <img src="https://img.shields.io/badge/interface-12.1.0%20(Midnight)-3E6E96" alt="WoW Interface 12.1.0 (Midnight)">
+  <img src="https://img.shields.io/badge/built%20on-Ace3-C9A227" alt="Built on Ace3">
+</p>
 
 Maines tags your outgoing chat messages with your "main" character's name wrapped in a bracket
 style of your choice, so guildies/friends know who's really talking even when you're on an alt.
@@ -97,6 +106,10 @@ a random public-domain art palette — Van Gogh's *Starry Night*, Hokusai's *Gre
 again for a different color. Requires the UI to have been opened at least once (`/maines`) so the
 textures exist to paint. You can also right-click the minimap icon to do the same thing.
 
+<p align="center">
+  <img src="docs/palette-preview.png" width="640" alt="The six /maincolor palettes: Starry Night, The Great Wave, The Kiss, Water Lilies, The Scream, and Composition II, each shown as five color swatches">
+</p>
+
 ### Minimap icon — `/mainmap`
 
 Toggles the Maines minimap icon on/off (it's on by default). While it's shown:
@@ -112,7 +125,7 @@ to reset that, so it plays again next time you `/maines`.
 
 ### Version stamp — `/mainstamp`
 
-Prints the current build stamp ("The Radial Stamp [ ∂ ]"). Maines uses stamps instead of
+Prints the current build stamp ("The Mosaic Stamp [ ▦ ]"). Maines uses stamps instead of
 alpha/beta/release version numbers.
 
 ### In-game command reference — `/mainhelp`
@@ -125,10 +138,13 @@ alt-tab to this README to remember the syntax. Contextual notes are included whe
 
 ### Debugging — `/maindebug`
 
-Toggles verbose debug printing of every tagging decision as you type: detected chat type, your
-saved name/brackets, whether a channel filter is active and whether it matched, and whether the
-message was already tagged. Turn this on first if chat tagging ever appears to silently stop
-working — it'll show exactly which check is failing instead of guessing.
+Toggles verbose debug printing of every tagging decision as you type: detected chat type (plus
+`clubId`/`streamId` when you're chatting in a community), your saved name/brackets, whether a
+channel filter is active and whether it matched, and whether the message was already tagged. Turn
+this on first if chat tagging ever appears to silently stop working — it'll show exactly which
+check is failing instead of guessing. If you're troubleshooting a report about a specific
+community, ask the reporter to run `/maindebug`, type in that community's chat, and share what
+prints — the `clubId` line confirms whether Maines even recognized it as community chat.
 
 ## Notes
 
@@ -146,6 +162,12 @@ working — it'll show exactly which check is failing instead of guessing.
   a `ChatEdit_SendText` hook kept as a fallback for Classic clients.
 - **Communities support:** `COMMUNITIES_CHANNEL`, `BN_WHISPER`, and the `*_LEADER` broadcast
   types are now tagged by default alongside the classic channel list.
+- **Multiple communities fix:** users in more than one community reported the tag only working
+  for some of them. Blizzard doesn't reliably stamp the editbox's chat type as
+  `COMMUNITIES_CHANNEL` for every community you belong to — it can silently fall back to `SAY`,
+  which then gets filtered out by anyone running an explicit `/mainchat` list. Every club-chat
+  editbox does always carry a `clubId` though, so Maines now normalizes the chat type using that
+  instead, which works no matter how many communities you're in.
 - **On-main detection:** Maines now knows whether you're playing the character set as your main
   and, by default, skips tagging in that case — see `/mainhide` / `/mainshow` above to change it.
 - **Still needed:** an aesthetic/GUI rework — the frames, brackets, and textures are still the

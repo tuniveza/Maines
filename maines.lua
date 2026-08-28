@@ -8,9 +8,9 @@
 
     NOTES: Was so tired of seeing other addons not be customizable and up to scratch; then made this!
 
-    STAMP: RADIAL [ ∂ ] 
-    
-    WHAT IS STAMP and RADIAL [ ∂ ]?
+    STAMP: MOSAIC [ ▦ ]
+
+    WHAT IS STAMP and MOSAIC [ ▦ ]?
     getting bored of the version ; alpha, beta, release so changed it to stamps ;)
     you can decide; where it's at in development... by using it.
 
@@ -93,6 +93,18 @@
     whispers) and the *_LEADER broadcast types (PARTY_LEADER, RAID_LEADER,
     INSTANCE_CHAT_LEADER) were added for the same reason. Use /mainchat with an
     explicit list if you want to exclude any of these again.
+
+    MULTIPLE COMMUNITIES FIX:
+    Users in more than one community reported the tag only working for some of
+    them. Root cause: Blizzard doesn't reliably stamp the editbox's "chatType"
+    attribute as COMMUNITIES_CHANNEL for every community you belong to - it can
+    silently fall back to "SAY", which then gets filtered out by anyone using an
+    explicit /mainchat list. Every club-chat editbox does always carry a clubId
+    though (one per community), so ModifyChatMessage now normalizes chatType to
+    COMMUNITIES_CHANNEL whenever a clubId is present (Guild/Officer club chat is
+    left alone since it already reports correctly). This works for any number of
+    communities. /maindebug now prints clubId/streamId too, for anyone reporting
+    a future issue.
 
     ==========================================
     ON-MAIN DETECTION (/mainhide, /mainshow)
@@ -184,7 +196,7 @@ end
 
 -- Slash command handlers:
 SlashCmdList["MAINMUSIC"] = function() _G["PlayedMusic_DB"] = "noplayed" end
-SlashCmdList["MAINSTAMP"] = function() print("The Radial Stamp [ ∂ ]") end
+SlashCmdList["MAINSTAMP"] = function() print("The Mosaic Stamp [ ▦ ]") end
 SlashCmdList["MAINCOLOR"] = function()
     if #Maines_Textures == 0 then
         print("|cFF00FF00Maines|r: no textures loaded yet — open /maines once first")
@@ -373,7 +385,22 @@ function maines:ModifyChatMessage(editBox)
     if not msg or msg == "" then return end
     -- The default SAY edit box has no "chatType" attribute set at all, so fall back to SAY.
     local chatType = editBox:GetAttribute("chatType") or editBox.chatType or "SAY"
-    if Maines_Debug then print("|cFF00FF00Maines debug|r: chatType="..tostring(chatType).." msg="..tostring(msg)) end
+
+    -- Community chat editboxes always carry a clubId (one per community you're a member of),
+    -- but Blizzard doesn't reliably stamp the "chatType" attribute itself as COMMUNITIES_CHANNEL
+    -- for every community beyond whichever one the client treats as primary - so a user in
+    -- several communities could see chatType silently fall back to "SAY" for the others, which
+    -- then gets filtered out by anyone using an explicit /mainchat list. Normalize using clubId
+    -- so tagging works the same no matter which community, or how many, you're a member of.
+    local clubId = editBox:GetAttribute("clubId") or editBox.clubId
+    if clubId and chatType ~= "GUILD" and chatType ~= "OFFICER" then
+        chatType = "COMMUNITIES_CHANNEL"
+    end
+
+    if Maines_Debug then
+        print(("|cFF00FF00Maines debug|r: chatType=%s clubId=%s streamId=%s msg=%s"):format(
+            tostring(chatType), tostring(clubId), tostring(editBox:GetAttribute("streamId") or editBox.streamId), tostring(msg)))
+    end
     local tagged = Maines_TagMessage(msg, chatType)
     if tagged ~= msg then
         editBox:SetText(tagged)
