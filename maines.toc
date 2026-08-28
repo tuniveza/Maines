@@ -6,7 +6,7 @@
 
 
 ## SavedVariablesPerCharacter:
-## SavedVariables: Maines_DB, Maines_Name_DB, Maines_Bracket_Option_DB, Maines_Bracket_Left_DB, Maines_Bracket_Right_DB, PlayedMusic_DB, Spaces_Option_DB, Maines_Chat_Options_DB, Maines_HideOnMain_DB
+## SavedVariables: Maines_DB, Maines_Name_DB, Maines_Bracket_Option_DB, Maines_Bracket_Left_DB, Maines_Bracket_Right_DB, PlayedMusic_DB, Spaces_Option_DB, Maines_Chat_Options_DB, Maines_HideOnMain_DB, Maines_ChatFilterSticky_DB, Maines_ChatFilterMode_DB
 
 ## OptionalDeps: Ace3
 

@@ -33,6 +33,9 @@
     <NEW> /mainchat +CHANNEL    -- add a single channel to the existing filter
     <NEW> /mainchat -CHANNEL    -- remove a single channel from the existing filter
     <NEW> /mainchat (no args)   -- clear the filter, tags every channel including Communities
+    <NEW> /mainchat mode include -- (default) the list is a whitelist: tag ONLY those channels
+    <NEW> /mainchat mode exclude -- flip it: tag every channel EXCEPT the ones listed
+    <NEW> /mainchat sticky      -- keep the current filter across reloads (off by default - see below)
     <NEW> /brackets - to see all bracket types
     <NEW> /maincolor - paints the Maines UI textures a random color from a random public-domain art palette
     <NEW> /mainmap - toggle the Maines minimap icon on/off
@@ -173,6 +176,49 @@
     wrap anything cosmetic/non-essential that runs at file scope (outside every
     function) in pcall so a bad assumption can never take the whole addon down
     again.
+
+    ==========================================
+    /mainchat: STICKY FILTERS + INCLUDE/EXCLUDE MODE
+    ==========================================
+    Two separate follow-ups after the filtering-bug fix above, both from real
+    confusion:
+
+    1) A filter set once during testing and then forgotten about kept silently
+    excluding channels forever, since Maines_Chat_Options_DB is a plain
+    SavedVariable with no expiry. Filters are now session-only by default -
+    OnInitialize wipes the filter on every fresh load unless you've explicitly
+    run /mainchat sticky to keep it. Middle-clicking the minimap icon also
+    clears it instantly, any time, sticky or not.
+
+    2) The filter list was always a whitelist (tag ONLY the listed channels),
+    which is fine for "just SAY and GUILD" but awkward for "everything except
+    WHISPER, because another addon already handles that" - the old way meant
+    listing every other channel by hand. /mainchat mode exclude flips the same
+    list into a blacklist (tag everything EXCEPT what's listed); /mainchat mode
+    include (the default) flips it back. Same +CHANNEL/-CHANNEL/list commands
+    work under either mode - only the interpretation of the list changes.
+
+    ==========================================
+    /mainchat -SAY,-YELL COULD SILENTLY ERASE THE FILTER
+    ==========================================
+    Reported by a real user (not just internal testing): "/mainchat -SAY,-YELL
+    removed all channels, and typing them one by one didn't add [it] back."
+    The +CHANNEL/-CHANNEL pattern only ever matched ONE operation at a time -
+    "-SAY,-YELL" failed that pattern (comma + a second op in the string) and
+    fell through to the "replace the whole filter" branch, which stored the
+    literal strings "-SAY" and "-YELL" - hyphens included - as if they were
+    channel names. Neither can ever equal a real chatType, so the filter
+    became "matches nothing": every message stopped getting tagged, not just
+    the ones for SAY/YELL. Retyping "-SAY" alone afterwards then searched for
+    an entry equal to "SAY" to remove, found "-SAY" instead (not a match), and
+    silently did nothing - matching "typed it one by one, it wasn't added."
+    Fixed properly rather than patched around: +CHANNEL/-CHANNEL now accepts
+    a comma-separated list of operations in one command (edits the existing
+    filter), a plain comma-separated list still replaces the whole filter, and
+    - critically - mixing the two styles in one command is now REJECTED with
+    an explicit error instead of silently falling through to whichever branch
+    happens to mishandle it. Verified against the stub harness with the exact
+    reported input.
 
     STILL TO DO:
     - Aesthetic / GUI rework (see NEXT FEATURES TO IMPLEMENT above - still applies)
@@ -377,6 +423,20 @@ local function Maines_GetChatFilter()
     return _G["Maines_Chat_Options_DB"]
 end
 
+-- A /mainchat filter only survives a reload if explicitly marked sticky (/mainchat sticky).
+-- This is the actual fix for "my filter is silently excluding channels and I forgot I set it" -
+-- the exact situation that turned out to be the whole story behind a recent "Maines is broken"
+-- report. Called once from OnInitialize, so it only ever resets on a fresh load, never mid-session.
+local function Maines_ResetChatFilterIfNotSticky()
+    if Maines_ChatFilterSticky_DB then return end
+    local filter = Maines_GetChatFilter()
+    if #filter > 0 then
+        print("|cFF00FF00Maines|r: chat filter ("..table.concat(filter, ", ")..
+            ") reset on load - tagging all channels again. Run |cFFFFE4B5/mainchat sticky|r to keep a filter across reloads.")
+        wipe(filter)
+    end
+end
+
 SlashCmdList["MAINCHAT"] = function(msg)
     msg = msg and strtrim(msg) or ""
     local filter = Maines_GetChatFilter()
@@ -388,10 +448,51 @@ SlashCmdList["MAINCHAT"] = function(msg)
     end
 
     if msg:lower() == "list" then
+        local mode = Maines_ChatFilterMode_DB or "include"
         if #filter == 0 then
             print("|cFF00FF00Maines|r: no filter set — tagging all channels")
+        elseif mode == "exclude" then
+            print("|cFF00FF00Maines|r: tagging every channel EXCEPT: "..table.concat(filter, ", ")..
+                (Maines_ChatFilterSticky_DB and " |cFF888888(sticky)|r" or ""))
         else
-            print("|cFF00FF00Maines|r: tagging channels: "..table.concat(filter, ", "))
+            print("|cFF00FF00Maines|r: tagging ONLY: "..table.concat(filter, ", ")..
+                (Maines_ChatFilterSticky_DB and " |cFF888888(sticky)|r" or ""))
+        end
+        return
+    end
+
+    -- /mainchat mode: whether the list above is a whitelist (tag ONLY these - the default,
+    -- and the fix for any confusion about which way this goes) or a blacklist (tag everything
+    -- EXCEPT these - handy for "just don't tag whispers" without listing every other channel).
+    if msg:lower():match("^mode%s*$") then
+        print("|cFF00FF00Maines|r: filter mode is |cFFFFE4B5"..(Maines_ChatFilterMode_DB or "include").."|r "..
+            "(/mainchat mode include | /mainchat mode exclude)")
+        return
+    end
+    local modeSet = msg:lower():match("^mode%s+(%a+)%s*$")
+    if modeSet then
+        if modeSet == "include" or modeSet == "exclude" then
+            Maines_ChatFilterMode_DB = modeSet
+            if modeSet == "include" then
+                print("|cFF00FF00Maines|r: filter mode set to |cFFFFE4B5include|r - tagging ONLY the listed channels")
+            else
+                print("|cFF00FF00Maines|r: filter mode set to |cFFFFE4B5exclude|r - tagging every channel EXCEPT the listed ones")
+            end
+        else
+            print("|cFF00FF00Maines|r: unknown mode \""..modeSet.."\" - use \"include\" or \"exclude\"")
+        end
+        return
+    end
+
+    -- By default a filter only lasts for the current session - see Maines_ResetChatFilterIfNotSticky
+    -- below. This is the fix for the exact confusion that prompted it: a filter set once during
+    -- testing and forgotten about would otherwise silently keep excluding channels forever.
+    if msg:lower() == "sticky" then
+        Maines_ChatFilterSticky_DB = not Maines_ChatFilterSticky_DB
+        if Maines_ChatFilterSticky_DB then
+            print("|cFF00FF00Maines|r: filter is now |cFFFFE4B5sticky|r - it'll survive reloads until you change it")
+        else
+            print("|cFF00FF00Maines|r: filter is |cFFFFE4B5no longer sticky|r - it'll reset to \"tag everything\" next reload")
         end
         return
     end
@@ -400,36 +501,77 @@ SlashCmdList["MAINCHAT"] = function(msg)
     -- "/mainchat doesn't do anything": entries were never trimmed or case-normalized, so
     -- "SAY, GUILD" (a space after the comma - completely natural to type) silently produced
     -- " GUILD" with a leading space, which then never matched the real chatType "GUILD" again.
-    -- Worse, a mistyped "+whisper" (lowercase) failed the old op pattern entirely and fell
-    -- through to the reset branch below, wiping the whole filter and replacing it with one
-    -- bogus "+WHISPER" entry that could never match anything - silently killing all tagging.
     local normalized = msg:upper()
 
-    local op, sel = normalized:match("^([%+%-])%s*(%u[%u_]*)%s*$")
-    if op then
-        if op == "+" then
-            local exists = false
-            for _, v in ipairs(filter) do if v == sel then exists = true; break end end
-            if not exists then table.insert(filter, sel) end
-            print("|cFF00FF00Maines|r: added "..sel.." to filter")
-        else
-            for i, v in ipairs(filter) do
-                if v == sel then table.remove(filter, i); break end
+    -- Split into comma-separated tokens up front - both the +/- path and the "replace the
+    -- whole list" path need this. This is also the fix for a second, worse bug: "/mainchat
+    -- -SAY,-YELL" (multiple ops in one command, which reads as completely natural syntax) used
+    -- to fail the single-operation +/- pattern below, fall through to the "replace the whole
+    -- list" branch, and get stored LITERALLY - "-SAY" and "-YELL", hyphens included - as if
+    -- they were channel names. Those can never match a real chatType, so the filter silently
+    -- became "match nothing", which tagged NOTHING, not even the channels the user wanted kept.
+    -- Retyping "-SAY" alone afterwards then looked for an entry equal to "SAY" to remove, found
+    -- "-SAY" instead (not an exact match), and silently did nothing - "typed it one by one, it
+    -- wasn't added." Now: every comma-separated token is required to be either ALL +/- operations
+    -- (edits an existing filter) or ALL plain channel names (replaces the filter) - never a
+    -- silent, corrupting mix of the two.
+    local tokens = {}
+    for rawToken in normalized:gmatch("([^,]+)") do
+        local token = strtrim(rawToken)
+        if token ~= "" then table.insert(tokens, token) end
+    end
+
+    if #tokens == 0 then
+        print("|cFF00FF00Maines|r: nothing to do - run /mainchat with no arguments to clear the filter")
+        return
+    end
+
+    local opTokens, plainTokens = 0, 0
+    for _, t in ipairs(tokens) do
+        if t:match("^[%+%-]") then opTokens = opTokens + 1 else plainTokens = plainTokens + 1 end
+    end
+
+    if opTokens > 0 and plainTokens > 0 then
+        print("|cFF00FF00Maines|r: can't mix +CHANNEL/-CHANNEL with plain channel names in one command")
+        print("|cFF00FF00Maines|r: use \"/mainchat SAY,GUILD\" to set the whole list, or \"/mainchat +SAY,-GUILD\" to edit the existing one")
+        return
+    end
+
+    if opTokens > 0 then
+        local added, removed, bad = {}, {}, {}
+        for _, t in ipairs(tokens) do
+            local op, sel = t:match("^([%+%-])(%u[%u_]*)$")
+            if not op then
+                table.insert(bad, t)
+            elseif op == "+" then
+                local exists = false
+                for _, v in ipairs(filter) do if v == sel then exists = true; break end end
+                if not exists then table.insert(filter, sel) end
+                table.insert(added, sel)
+            else
+                for i, v in ipairs(filter) do
+                    if v == sel then table.remove(filter, i); table.insert(removed, sel); break end
+                end
             end
-            print("|cFF00FF00Maines|r: removed "..sel.." from filter")
+        end
+        if #added > 0 then print("|cFF00FF00Maines|r: added "..table.concat(added, ", ").." to filter") end
+        if #removed > 0 then print("|cFF00FF00Maines|r: removed "..table.concat(removed, ", ").." from filter") end
+        if #bad > 0 then print("|cFF00FF00Maines|r: ignored invalid entries: "..table.concat(bad, ", ")) end
+        if #added == 0 and #removed == 0 and #bad == 0 then
+            print("|cFF00FF00Maines|r: nothing changed")
         end
         return
     end
 
     wipe(filter)
-    for rawToken in normalized:gmatch("([^,]+)") do
-        local token = strtrim(rawToken)
-        if token ~= "" then table.insert(filter, token) end
-    end
+    for _, token in ipairs(tokens) do table.insert(filter, token) end
+    local mode = Maines_ChatFilterMode_DB or "include"
     if #filter == 0 then
         print("|cFF00FF00Maines|r: no valid channel names found - filter left empty, tagging all channels")
+    elseif mode == "exclude" then
+        print("|cFF00FF00Maines|r: tagging every channel EXCEPT: "..table.concat(filter, ", "))
     else
-        print("|cFF00FF00Maines|r: tagging channels: "..table.concat(filter, ", "))
+        print("|cFF00FF00Maines|r: tagging ONLY: "..table.concat(filter, ", "))
     end
 end
 
@@ -457,10 +599,22 @@ local function Maines_TagMessage(msg, chatType)
     end
 
     local filter = _G["Maines_Chat_Options_DB"]
+    local mode = _G["Maines_ChatFilterMode_DB"] or "include"
     local valid = false
     if filter and type(filter) == "table" and #filter > 0 then
-        for _, v in ipairs(filter) do if chatType == v then valid = true; break end end
-        if Maines_Debug then print("|cFF00FF00Maines debug|r: using filter table, size="..#filter.." valid="..tostring(valid)) end
+        local inFilter = false
+        for _, v in ipairs(filter) do if chatType == v then inFilter = true; break end end
+        if mode == "exclude" then
+            -- Blacklist: tag every recognized channel type except the ones listed - still
+            -- gated on Channel_Types so an unrecognized chatType can't slip through untagged-check.
+            local isKnownChannel = false
+            for _, ctype in ipairs(Channel_Types) do if chatType == ctype then isKnownChannel = true; break end end
+            valid = isKnownChannel and not inFilter
+        else
+            -- Whitelist (default): tag ONLY the listed channels.
+            valid = inFilter
+        end
+        if Maines_Debug then print("|cFF00FF00Maines debug|r: using filter table, mode="..mode..", size="..#filter.." valid="..tostring(valid)) end
     else
         for _, ctype in ipairs(Channel_Types) do if chatType == ctype then valid = true; break end end
         if Maines_Debug then print("|cFF00FF00Maines debug|r: no filter, checked Channel_Types, valid="..tostring(valid)) end
@@ -573,8 +727,16 @@ local Help_Sections = {
                 desc = "Print the channels currently in the filter.",
                 example = "/mainchat list"},
             {icon = "INV_Letter_15", cmd = "/mainchat", args = "+CHANNEL / -CHANNEL",
-                desc = "Add or remove one channel without retyping the whole list.",
-                example = "/mainchat -WHISPER", note = "Handy if another addon already tags your whispers."},
+                desc = "Add or remove one or more channels without retyping the whole list.",
+                example = "/mainchat -SAY,-YELL", note = "Comma-separate several +/- ops in one go. Can't mix these with plain channel names in the same command - that's rejected outright rather than guessed at."},
+            {icon = "INV_Letter_15", cmd = "/mainchat", args = "mode include | exclude",
+                desc = "Switch whether the list above means \"tag ONLY these\" (default) or \"tag everything EXCEPT these\".",
+                example = "/mainchat mode exclude",
+                note = "\"mode\" with no argument prints which one is active. include+exclude use the same list from above."},
+            {icon = "INV_Letter_15", cmd = "/mainchat", args = "sticky",
+                desc = "Toggle whether the current filter survives a reload.",
+                example = "/mainchat sticky",
+                note = "Off by default: any filter resets to \"tag everything\" on your next reload unless you turn this on. Also resettable instantly by middle-clicking the minimap icon."},
         },
     },
     {
@@ -587,7 +749,7 @@ local Help_Sections = {
                 example = "/maincolor", note = "Also triggered by right-clicking the minimap icon."},
             {icon = "INV_Misc_Map_01", cmd = "/mainmap", args = "",
                 desc = "Toggle the Maines minimap icon on/off.",
-                example = "/mainmap"},
+                example = "/mainmap", note = "The icon itself: left-click shows/hides Maines, right-click recolors it, middle-click resets the /mainchat filter."},
             {icon = "INV_Misc_Gear_08", cmd = "/maines", args = "",
                 desc = "Open the Maines UI (same as left-clicking the minimap icon).",
                 example = "/maines"},
@@ -796,12 +958,15 @@ function maines:SetupMinimapIcon()
                 Maines_ToggleMainWindow()
             elseif button == "RightButton" then
                 SlashCmdList["MAINCOLOR"]()
+            elseif button == "MiddleButton" then
+                SlashCmdList["MAINCHAT"]("")
             end
         end,
         OnTooltipShow = function(tooltip)
             tooltip:AddLine("Maines")
             tooltip:AddLine("|cFFFFFFFFLeft-click|r to show/hide Maines")
             tooltip:AddLine("|cFFFFFFFFRight-click|r to recolor (/maincolor)")
+            tooltip:AddLine("|cFFFFFFFFMiddle-click|r to reset the /mainchat filter")
         end,
     })
 
@@ -823,6 +988,8 @@ function maines:OnInitialize()
     if Maines_HideOnMain_DB == nil then
         Maines_HideOnMain_DB = true
     end
+
+    Maines_ResetChatFilterIfNotSticky()
 
     -- Classic clients may have a backported EventRegistry table that never fires this
     -- event, so gate on the actual client build rather than just table presence.

@@ -81,21 +81,35 @@ leader-broadcast variants). Use `/mainchat` to narrow that down:
 | Command | Effect |
 |---|---|
 | `/mainchat` (no arguments) | Clears the filter — back to tagging everything |
-| `/mainchat SAY,GUILD,PARTY` | Only tag these channels (comma-separated) |
-| `/mainchat list` | Print the channels currently in the filter |
-| `/mainchat +WHISPER` | Add a single channel to the existing filter, without retyping the rest |
-| `/mainchat -WHISPER` | Remove a single channel from the existing filter |
+| `/mainchat SAY,GUILD,PARTY` | Sets the filter to these channels (comma-separated) |
+| `/mainchat list` | Print the channels currently in the filter, and the current mode |
+| `/mainchat +WHISPER` | Add a channel to the existing filter, without retyping the rest |
+| `/mainchat -WHISPER` | Remove a channel from the existing filter |
+| `/mainchat -SAY,-YELL` | `+`/`-` accept a comma-separated list too — several edits in one command |
+| `/mainchat mode include` | (default) the filter is a whitelist — tag **only** the listed channels |
+| `/mainchat mode exclude` | Flip it: tag **every** channel **except** the listed ones |
+| `/mainchat mode` | Print which mode is currently active |
+| `/mainchat sticky` | Toggle whether the filter survives a `/reload` (off by default — see below) |
 
 Case and spacing don't matter — `say, guild` and `SAY,GUILD` behave identically; everything is
-normalized before matching. (Earlier versions silently mismatched on either, which made the
-filter look broken — see **Status** below.)
+normalized before matching.
+
+You can't mix `+`/`-` edits with plain channel names in the same command (e.g. `/mainchat
++WHISPER,PARTY` is rejected, not guessed at) — that ambiguity used to get silently resolved the
+wrong way and could wipe your filter; see **Status** below.
+
+**Filters don't persist by default.** A filter set during testing and forgotten about used to
+silently keep excluding channels forever across every future session. Now, unless you run
+`/mainchat sticky`, your filter resets to "tag everything" on your next `/reload` or login. You
+can also clear it instantly at any time — sticky or not — by **middle-clicking the minimap icon**.
 
 Valid channel names: `SAY`, `YELL`, `EMOTE`, `PARTY`, `PARTY_LEADER`, `RAID`, `RAID_LEADER`,
 `RAID_WARNING`, `INSTANCE_CHAT`, `INSTANCE_CHAT_LEADER`, `GUILD`, `OFFICER`, `WHISPER`,
 `BN_WHISPER`, `CHANNEL`, `COMMUNITIES_CHANNEL`, `VOICE_TEXT`, `AFK`, `DND`.
 
 Example: if another addon already tags your whispers and you don't want Maines doubling up there,
-run `/mainchat -WHISPER` (or list out everything except `WHISPER` explicitly).
+run `/mainchat -WHISPER` (or, more robustly, `/mainchat mode exclude` then `/mainchat WHISPER` —
+tags everything except whispers, and automatically covers any new channel type added later).
 
 ### Listing bracket styles — `/bracket`
 
@@ -117,8 +131,9 @@ textures exist to paint. You can also right-click the minimap icon to do the sam
 ### Minimap icon — `/mainmap`
 
 Toggles the Maines minimap icon on/off (it's on by default). While it's shown:
-- **Left-click** opens the Maines UI (same as `/maines`)
+- **Left-click** shows/hides the Maines UI (same as `/maines`)
 - **Right-click** rolls a new `/maincolor` palette
+- **Middle-click** resets the `/mainchat` filter instantly, regardless of sticky
 - It spins slowly, purely for fun
 - Drag it anywhere around the minimap ring
 
@@ -198,8 +213,25 @@ prints — the `clubId` line confirms whether Maines even recognized it as commu
   unhandled error — meaning no frames were ever created and no slash command ever got registered.
   Confirmed by actually executing `maines.lua` against a stub WoW environment (not just
   syntax-checking it) with `time` left undefined, which reproduced the exact crash, and again
-  after removing the call, which then loaded clean. Removed outright rather than swapped for
-  another guessed-at timing API, since it was cosmetic only.
+  after removing the call, which then loaded clean. Removed outright, then permanently
+  reintroduced using `GetTime()` (a core, always-available WoW timer API) wrapped in `pcall()`,
+  so even a future bad assumption here can't take the whole addon down again.
+- **`/mainchat` filters no longer persist by default:** a filter set once and forgotten about
+  used to silently keep excluding channels forever. It now resets to "tag everything" on every
+  fresh load unless you explicitly run `/mainchat sticky`. Middle-clicking the minimap icon also
+  clears it instantly at any time.
+- **`/mainchat` gained an include/exclude mode:** `/mainchat mode exclude` flips the filter into
+  a blacklist (tag everything *except* the listed channels), for cases like "tag everything but
+  whispers" without hand-listing every other channel type. `/mainchat mode include` (the default)
+  is the original whitelist behavior.
+- **`/mainchat -SAY,-YELL` could silently wipe the whole filter:** reported by a real user, not
+  just internal testing. The `+CHANNEL`/`-CHANNEL` pattern only ever matched one operation at a
+  time; a comma-separated pair of them fell through to the "replace the whole filter" branch and
+  got stored as the literal strings `"-SAY"`/`"-YELL"` (hyphens included), which could never
+  match a real chat type — silently disabling all tagging, not just SAY/YELL. `+CHANNEL`/
+  `-CHANNEL` now accept a comma-separated list of edits in one command, and mixing that style
+  with a plain channel-name list in the same command is rejected outright with a clear error
+  instead of silently falling through to whichever branch mishandles it.
 - **Still needed:** an aesthetic/GUI rework — the frames, brackets, and textures are still the
   original placeholder art and haven't been touched (though `/maincolor` at least makes them
   more colorful in the meantime).
