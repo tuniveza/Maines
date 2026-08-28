@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="img/maines_logo.png" width="140" alt="Maines logo — an illuminated manuscript-style letter M">
-</p>
-
 <h1 align="center">Maines</h1>
 <p align="center"><em>Take your main name to the chat frame, then gtfo.</em></p>
 
@@ -69,8 +65,36 @@ Maines always tags on alts regardless of this setting, since that's the whole po
 
 ### Opening the UI — `/maines`
 
-Opens the Maines frame (also reachable via the minimap icon's left-click, see below). Press
+Opens the Maines window (also reachable via the minimap icon's left-click, see below). Press
 `Escape` or click the close button to dismiss it.
+
+The window is a tabbed control panel — **Main**, **Filter**, **Behavior**, **Cosmetic**, **Help**
+— that reaches every command on this page without typing any syntax: a name box and bracket
+buttons instead of `/mains <name> <bracket>`, checkboxes instead of `/mainchat`'s comma lists,
+and so on. Every widget calls straight into the same command handler described below, so the
+GUI and the text commands can never drift out of sync — pick whichever you prefer, or mix both.
+
+On the Main tab, the bracket buttons live-preview `<left><your name><right>` as you type and
+grow/reflow to fit longer names; clicking one applies it immediately, and a separate **Apply**
+button reapplies your last-picked bracket (or a custom symbol) after you edit the name, without
+needing to click the bracket again.
+
+The GUI is currently a **placeholder skeleton**: every panel and button is a solid-color
+rectangle (`Interface\Buttons\WHITE8X8`, fully opaque and fully under this addon's control —
+an earlier pass tried real Blizzard dialog/button art for more visible texture and bevel, but
+those textures rendered as transparent, and the button skin never picked up any tint at all;
+both were reverted for this reliable-but-flatter approach), brass/copper-toned buttons, and
+[Agave](https://github.com/blobject/agave) (a free/open font, SIL Open Font License 1.1,
+shipped in `fonts/agave/` and subset down to ~45KB per weight) for every piece of text. A
+handful of spinning gear/gizmo icons stand in for real gnomish/goblin-engineered artwork, which
+is the next pass. `/maincolor` reaches every button face, window/panel fills and borders, and
+the gear icons, while the actual reading text stays a fixed, deliberately high-contrast ink
+color so a palette roll can never make text unreadable. The window is an honest rectangle, not
+an octagon — a non-rectangular silhouette needs a real alpha-masked texture, which is out of
+scope for an art-free pass; an early attempt at faking the corners with diagonal accent trim
+looked bad and was removed rather than kept as a compromise. The old hand-painted art has been
+moved to `img/old/` (gitignored, kept only for reference) and nothing in the addon reads from
+it anymore.
 
 ### Controlling which channels get tagged — `/mainchat`
 
@@ -149,9 +173,9 @@ alpha/beta/release version numbers.
 
 ### In-game command reference — `/mainhelp`
 
-Opens a movable, scrollable reference window (dressed in the same parchment art as the rest of
-the addon) instead of spamming chat — a small illustrative graphic showing what a tagged message
-looks like, then every command above grouped by category (Setting Up Your Main, On Your Main vs.
+Opens a movable, scrollable reference window (same flat-colored placeholder skin as the rest of
+the addon) instead of spamming chat — a short worked example of what a tagged message looks
+like, then every command above grouped by category (Setting Up Your Main, On Your Main vs.
 an Alt, Chat Channel Filtering, Cosmetic & Minimap, Utility) with an icon, a plain-English
 description, and a worked example for each. Press `Escape`, or click the close button, to dismiss
 it. Contextual notes are included where relevant (e.g. that `/mainchat -WHISPER` is handy if
@@ -179,6 +203,15 @@ prints — the `clubId` line confirms whether Maines even recognized it as commu
 
 ## Status
 
+- **GUI rewrite: `/maines` is now a tabbed control panel, not the old fixed textured frame.**
+  Main / Filter / Behavior / Cosmetic / Help tabs reach every command above without typing
+  syntax; every widget calls the same command handler documented here, so the GUI can't drift
+  out of sync with the text commands. The old hand-painted art (`bg`, `header`, `command_bg`,
+  `option`, `stamp`, `closebutton`, `parchment_tile`, the minimap icon, the mainhelp example
+  graphic) has all been retired to `img/old/` (gitignored, kept for reference only) and nothing
+  in the addon reads from it anymore — the window and the `/mainhelp` panel are built entirely
+  from flat-colored backdrops and Blizzard's own templates/icons as a placeholder skeleton for
+  the next art pass.
 - **Chat tagging: fixed and confirmed working on retail 12.1.0.** Patch 12.0.0 rearchitected
   outgoing chat, which silently broke the old `SendChatMessage` hook (no errors, tag just never
   appeared). Maines now hooks the modern `EventRegistry` `"ChatFrame.OnEditBoxPreSendText"`
@@ -195,9 +228,7 @@ prints — the `clubId` line confirms whether Maines even recognized it as commu
 - **On-main detection:** Maines now knows whether you're playing the character set as your main
   and, by default, skips tagging in that case — see `/mainhide` / `/mainshow` above to change it.
 - **`/mainhelp` is now a window, not a chat dump:** a movable, scrollable panel with an icon per
-  command and an illustrative example graphic, built from the same data as the chat version
-  (still available via `/mainhelp text`), rendered on a seamless parchment-tile background so it
-  matches the rest of the addon's art instead of a flat dark box.
+  command, built from the same data as the chat version (still available via `/mainhelp text`).
 - **The minimap icon now toggles the window** on left-click instead of only ever opening it.
 - **`/mainchat` filtering was silently broken:** comma-separated entries were never trimmed or
   case-normalized, so `SAY, GUILD` (a space after the comma) produced a filter entry `" GUILD"`
@@ -232,9 +263,9 @@ prints — the `clubId` line confirms whether Maines even recognized it as commu
   `-CHANNEL` now accept a comma-separated list of edits in one command, and mixing that style
   with a plain channel-name list in the same command is rejected outright with a clear error
   instead of silently falling through to whichever branch mishandles it.
-- **Still needed:** an aesthetic/GUI rework — the frames, brackets, and textures are still the
-  original placeholder art and haven't been touched (though `/maincolor` at least makes them
-  more colorful in the meantime).
+- **Still needed:** real gnomish/goblin-engineered artwork for the new tabbed window and
+  `/mainhelp` panel — both are currently the flat-colored placeholder skeleton described above.
+  `/maincolor` still works against it in the meantime.
 
 ## Author
 

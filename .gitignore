@@ -1,2 +1,6 @@
 .vscode/
 *.afdesign
+
+# Retired art from the pre-rewrite GUI. Nothing in the addon references these anymore;
+# kept on disk for the next artistic pass but not tracked going forward.
+img/old/
