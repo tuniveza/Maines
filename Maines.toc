@@ -1,0 +1,16 @@
+## Interface: 120100
+## Title: Maines
+## Notes: Plaster Your Main Name To Chat Frame in Style
+## Author: Universa / Dominic Hughes
+## Version: @project-version@
+## Category: Chat
+## IconTexture: Interface\Icons\INV_Gizmo_02
+## X-Website: https://github.com/tuniveza/Maines
+## X-Curse-Project-ID: 1721025
+
+## SavedVariables: Maines_DB, Maines_Name_DB, Maines_Bracket_Option_DB, Maines_Bracket_Left_DB, Maines_Bracket_Right_DB, PlayedMusic_DB, Maines_Chat_Options_DB, Maines_HideOnMain_DB, Maines_ChatFilterSticky_DB, Maines_ChatFilterMode_DB
+
+## OptionalDeps: Ace3
+
+embeds.xml
+maines.xml

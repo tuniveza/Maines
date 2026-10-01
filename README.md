@@ -32,10 +32,20 @@ Midnight's rearchitecture of outgoing chat and has been fixed — see **Status**
 
 ## Installation
 
-Grab the zip from the **[Releases page](https://github.com/tuniveza/Maines/releases/latest)**,
+Grab the `Maines-<stamp>.zip` from the **[Releases page](https://github.com/tuniveza/Maines/releases/latest)**,
 not the green "Code" button's Download ZIP — that one names the folder `Maines-main`, which
 WoW won't recognize as a valid addon folder. The Releases zip is prebuilt so it extracts to a
 folder already named `Maines`; just drag that straight into your `Interface/AddOns/` folder.
+
+### Releasing (maintainers)
+
+Pushing a tag (the stamp name, e.g. `git tag MOSAIC && git push origin MOSAIC`) runs
+[BigWigsMods/packager](https://github.com/BigWigsMods/packager) via `.github/workflows/release.yml`.
+It builds the zip using `.pkgmeta` (which strips dev-only files and the Ace3 pieces Maines
+doesn't load), stamps the tag into the TOC's `## Version`, generates a changelog from commits,
+and publishes to GitHub Releases. CurseForge upload kicks in once the repo has a `CF_API_KEY`
+secret and `Maines.toc` has a `## X-Curse-Project-ID:` line. The CurseForge project page text
+lives in `docs/curseforge-description.md`.
 
 ## Quick Start
 

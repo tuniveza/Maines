@@ -1,0 +1,39 @@
+package-as: Maines
+
+enable-nolib-creation: no
+
+# Everything below is dev-only or never loaded by embeds.xml. WoW only loads what
+# embeds.xml / maines.xml reference, so anything not listed there is dead weight in the zip.
+ignore:
+  - README.md
+  - docs
+  - notes
+  # Ace3 bundle pieces Maines doesn't load
+  - Libs/Ace3.lua
+  - Libs/Ace3.toc
+  - Libs/Ace3_TBC.toc
+  - Libs/Ace3_Vanilla.toc
+  - Libs/Ace3_Wrath.toc
+  - Libs/Bindings.xml
+  - Libs/README.md
+  - Libs/changelog.txt
+  - Libs/CHANGES.txt
+  - Libs/AceBucket-3.0
+  - Libs/AceComm-3.0
+  - Libs/AceConfig-3.0
+  - Libs/AceConsole-3.0
+  - Libs/AceEvent-3.0
+  - Libs/AceGUI-3.0
+  - Libs/AceLocale-3.0
+  - Libs/AceSerializer-3.0
+  - Libs/AceTab-3.0
+  - Libs/AceTimer-3.0
+  # LibDBIcon's standalone-addon wrapper (its own LibStub/CallbackHandler copies + .toc files)
+  - Libs/LibDBIcon-1.0/CHANGES.txt
+  - Libs/LibDBIcon-1.0/CallbackHandler-1.0
+  - Libs/LibDBIcon-1.0/LibStub
+  - Libs/LibDBIcon-1.0/embeds.xml
+  - Libs/LibDBIcon-1.0/LibDBIcon-1.0.toc
+  - Libs/LibDBIcon-1.0/LibDBIcon-1.0_TBC.toc
+  - Libs/LibDBIcon-1.0/LibDBIcon-1.0_Vanilla.toc
+  - Libs/LibDBIcon-1.0/LibDBIcon-1.0_Wrath.toc

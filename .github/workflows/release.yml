@@ -11,15 +11,18 @@ permissions:
 jobs:
   package:
     runs-on: ubuntu-latest
+    env:
+      # CurseForge upload is skipped automatically until this secret exists and
+      # Maines.toc has a "## X-Curse-Project-ID:" line.
+      CF_API_KEY: ${{ secrets.CF_API_KEY }}
+      GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Build addon zip (folder named "Maines", not "Maines-main")
-        run: git archive --format=zip --prefix=Maines/ -o Maines.zip HEAD
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
         with:
-          files: Maines.zip
-          generate_release_notes: true
+          fetch-depth: 0  # packager builds the changelog from git history
+
+      # Builds Maines-<tag>.zip (folder named "Maines", filtered by .pkgmeta), substitutes
+      # @project-version@ in the TOC with the tag name, then publishes to GitHub Releases and CurseForge.
+      - name: Package and release
+        uses: BigWigsMods/packager@v2

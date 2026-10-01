@@ -381,12 +381,9 @@ SLASH_MAINCOLOR1 = '/maincolor'
 SLASH_MAINMAP1 = '/mainmap'
 
 Maines_Bracket_Color = ""
-bracket_left_option = ""
 Maines_Name = ""
-bracket_right_option = ""
 Maines_Chat_Options = {}
 _G["PlayedMusic_DB"] = "noplayed"
-_G["Space_Option_DB"] = ""
 
 local Channel_Types = {
     "GUILD", "OFFICER", "RAID", "INSTANCE_CHAT", "PARTY", "WHISPER", "RAID_WARNING",
