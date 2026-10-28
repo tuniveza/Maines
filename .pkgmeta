@@ -12,6 +12,11 @@ ignore:
   - README.md
   - docs
   - notes
+  - tests
+  - make.sh
+  - reload.sh
+  - tools
+  - textures/icons/preview.png
   # Ace3 bundle pieces Maines doesn't load
   - Libs/Ace3.lua
   - Libs/Ace3.toc

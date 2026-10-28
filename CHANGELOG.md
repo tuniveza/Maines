@@ -1,3 +1,20 @@
+# GLYPH
+
+Updated for WoW 12.1.5.
+
+### New
+
+- **Saved phrases.** Keep a list of words, sentences or symbols on the new **Phrases** page (or `/mainphrase add <text>`). Press your shortcut key to put the next one in the chat box; press it again to swap to the one after. You still press Enter to send. Set the keys on the Phrases page or in Key Bindings > AddOns > Maines.
+- **Animated tag.** Your tag can change a little with every message: bracket cycle, typewriter, capital wave, twinkle, or your own saved phrases. One step per message, or one step every 30 seconds to 15 minutes. See the **Animate** page or `/mainanim`.
+- **Textual Badges.** Send a whole text picture to chat, one line per row. Comes with 10 ready-made badges (Heart, Shield, Sword, 3D Cube, 3D Pyramid, Crown, Glyph Stamp, GG, Murloc, Rose), and you can draw and save your own. One badge every 3 minutes. See the **Badges** page or `/mainbadge`.
+
+- **`/mainnote`.** A short note from me, with what's new in each update. It pops up once by itself after an update.
+
+### Changed
+
+- **New look.** The window keeps its brass-and-parchment colors, now with soft gradients, paper and brushed-brass textures, bevelled buttons, a row of tabs, a soft glow and its own hand-made icons. It's not the final look by a long stretch: just a nice make-over to keep it fun and interesting until I can sit down and properly update it, like in the early versions.
+- **Calmer motion.** The gears and minimap icon no longer spin all the time. The minimap icon turns once when you point at it, and the window fades in when it opens.
+
 # MOSAIC
 
 First release on CurseForge. Updated for WoW Midnight (12.x).

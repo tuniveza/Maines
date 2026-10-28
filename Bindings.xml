@@ -1,0 +1,11 @@
+<Bindings>
+  <Binding name="MAINES_NEXT_PHRASE" header="MAINES" category="ADDONS">
+    Maines_CyclePhrase(1)
+  </Binding>
+  <Binding name="MAINES_PREV_PHRASE" category="ADDONS">
+    Maines_CyclePhrase(-1)
+  </Binding>
+  <Binding name="MAINES_SEND_BADGE" category="ADDONS">
+    Maines_SendBadge()
+  </Binding>
+</Bindings>

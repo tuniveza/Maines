@@ -8,9 +8,9 @@
 
     NOTES: Was so tired of seeing other addons not be customizable and up to scratch; then made this!
 
-    STAMP: MOSAIC [ ▦ ]
+    STAMP: GLYPH
 
-    WHAT IS STAMP and MOSAIC [ ▦ ]?
+    WHAT IS STAMP and GLYPH?
     getting bored of the version ; alpha, beta, release so changed it to stamps ;)
     you can decide; where it's at in development... by using it.
 
@@ -352,6 +352,12 @@
  ]]
 local maines = LibStub("AceAddon-3.0"):NewAddon("Maines","AceHook-3.0")
 
+-- Shared with the feature files loaded after this one (phrases.lua, animate.lua, badges.lua -
+-- see maines.xml). WoW hands every file of an addon the same private table as its second
+-- vararg, so this is how they reach the GUI helpers and panels built below without globals.
+local _, ns = ...
+ns.RefreshHooks = {}
+
 -- Session-to-session variety for /maincolor. GetTime() (unlike the apparently-absent time())
 -- is a core WoW timer API that's about as safe a bet as they come, but this is purely cosmetic,
 -- so it's still pcall-wrapped: if that assumption is ever wrong too, the failure is swallowed
@@ -458,6 +464,11 @@ local function Maines_MakeFontObject(name, path, size, flags)
 end
 
 local Maines_Font_Title = Maines_MakeFontObject("Maines_Font_Title", AGAVE_BOLD, 24, "")
+-- Titles and headings use WoW's own engraved display face (the one quest titles use); body text
+-- stays in Agave.
+local MORPHEUS = "Fonts\\MORPHEUS.TTF"
+local Maines_Font_Display = Maines_MakeFontObject("Maines_Font_Display", MORPHEUS, 30, "")
+local Maines_Font_Heading = Maines_MakeFontObject("Maines_Font_Heading", MORPHEUS, 17, "")
 local Maines_Font_Header = Maines_MakeFontObject("Maines_Font_Header", AGAVE_BOLD, 13, "")
 local Maines_Font_Body = Maines_MakeFontObject("Maines_Font_Body", AGAVE_REGULAR, 12, "")
 local Maines_Font_BodySmall = Maines_MakeFontObject("Maines_Font_BodySmall", AGAVE_REGULAR, 10, "")
@@ -466,14 +477,32 @@ local Maines_Font_Button = Maines_MakeFontObject("Maines_Font_Button", AGAVE_BOL
 -- A single warm brass/walnut value ramp used for every panel in the UI, light to dark, so
 -- nothing jumps between near-white and near-black the way the first pass did. Ink colors are
 -- fixed (not recolored) so text always stays readable regardless of the active palette.
+-- Surfaces get depth from soft gradients and a tiled paper grain (textures/grain.tga) layered
+-- over their flat fill - see Maines_DressSurface below.
 local INK = {0.14, 0.08, 0.03}
 local INK_SOFT = {0.32, 0.22, 0.13}
 local PLATE_TEXT = {0.96, 0.91, 0.78}
+local PLATE_TEXT_SOFT = {0.78, 0.68, 0.52}
+-- The brass the buttons, rules and nav marker start as; /maincolor repaints it.
+local ACCENT = {0.70, 0.47, 0.18}
 
 local WINDOW_BG = {0.68, 0.55, 0.34, 1}
 local CONTENT_BG = {0.80, 0.68, 0.46, 1}
 local PLATE_BG = {0.24, 0.16, 0.09, 1}
 local BORDER_DARK = {0.30, 0.19, 0.09, 1}
+
+-- Chat-color escapes for inline text, matched to the colors above.
+local HEX_TEXT = "|cFF3A2A1E"
+local HEX_SOFT = "|cFF6B5233"
+local HEX_ACCENT = "|cFF7A4510"
+
+local TEXTURES = "Interface\\AddOns\\Maines\\textures\\"
+local GRAIN_TEXTURE = TEXTURES .. "grain.tga"
+local BRUSHED_TEXTURE = TEXTURES .. "brushed.tga"
+local GLOW_TEXTURE = TEXTURES .. "glow.tga"
+-- Maines' own line-art icons (tools/make_icons.py): white, tinted in game.
+local ICONS = TEXTURES .. "icons\\"
+local LOGO_TEXTURE = TEXTURES .. "logo.tga"
 
 -- Every colorable thing registers here so /maincolor can repaint the whole UI at once:
 -- - texture: a plain Texture region, fully tinted to the palette color (gear icons, button
@@ -513,7 +542,23 @@ local FILL_BLEND = 0.55
 -- Maines_LayoutMainPanel elsewhere in this file, for the same reason: this function needs to
 -- exist as an upvalue here before its real body (which needs button-local state) is written.
 local Maines_SetButtonBaseColor
+
+local function Maines_Luminance(r, g, b)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+end
+
+-- Accent text only ever sits on a dark walnut plate, so a dark palette color (e.g. Starry
+-- Night's navy) is lifted toward white until it's readable rather than painted as-is.
+local function Maines_LiftForText(r, g, b)
+    for _ = 1, 10 do
+        if Maines_Luminance(r, g, b) >= 0.55 then break end
+        r, g, b = r + (1 - r) * 0.2, g + (1 - g) * 0.2, b + (1 - b) * 0.2
+    end
+    return r, g, b
+end
+
 local function Maines_ApplyPaletteColor(r, g, b, hex, label)
+    ACCENT[1], ACCENT[2], ACCENT[3] = r, g, b
     for _, entry in ipairs(Maines_Textures) do
         if entry.texture then
             entry.texture:SetVertexColor(r, g, b)
@@ -529,7 +574,9 @@ local function Maines_ApplyPaletteColor(r, g, b, hex, label)
         elseif entry.backdrop then
             entry.backdrop:SetBackdropBorderColor(r, g, b, 1)
         elseif entry.fontstring then
-            entry.fontstring:SetTextColor(r, g, b)
+            entry.fontstring:SetTextColor(Maines_LiftForText(r, g, b))
+        elseif entry.repaint then
+            entry.repaint(r, g, b)
         end
     end
     if hex and label then
@@ -544,7 +591,30 @@ end
 -- this client (the window and its panels showed the 3D world straight through them), which is
 -- a strictly worse bug than a flat but fully opaque, correctly colored panel. WHITE8X8 is the
 -- one texture guaranteed to render exactly as its color says, so everything uses it now.
--- Genuine surface grain/weathering needs a real art asset - out of scope for this pass.
+--
+-- Depth and grain are layered ON TOP of that opaque fill (Maines_DressSurface): a soft light-
+-- to-shade gradient, then the addon's own tiled paper grain (textures/grain.tga). Both are
+-- semi-transparent overlays, so if the grain file ever fails to load, the panel is simply the
+-- flat color underneath - never see-through.
+local function Maines_DressSurface(frame, inset, grainAlpha)
+    inset = inset or 0
+    local shade = frame:CreateTexture(nil, "BACKGROUND", nil, 2)
+    shade:SetPoint("TOPLEFT", inset, -inset)
+    shade:SetPoint("BOTTOMRIGHT", -inset, inset)
+    shade:SetTexture("Interface\\Buttons\\WHITE8X8")
+    shade:SetGradient("VERTICAL", CreateColor(0.20, 0.10, 0.02, 0.22), CreateColor(1, 0.96, 0.85, 0.12))
+
+    local grain = frame:CreateTexture(nil, "BACKGROUND", nil, 3)
+    grain:SetPoint("TOPLEFT", inset, -inset)
+    grain:SetPoint("BOTTOMRIGHT", -inset, inset)
+    grain:SetTexture(GRAIN_TEXTURE, "REPEAT", "REPEAT")
+    grain:SetHorizTile(true)
+    grain:SetVertTile(true)
+    grain:SetVertexColor(0.30, 0.18, 0.06)
+    grain:SetAlpha(grainAlpha or 0.30)
+    return shade, grain
+end
+
 local function Maines_MakeFlatBackdrop(frame, bg, border, edgeSize)
     frame:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8X8",
@@ -555,81 +625,30 @@ local function Maines_MakeFlatBackdrop(frame, bg, border, edgeSize)
     frame:SetBackdropBorderColor(border[1], border[2], border[3], 1)
     Maines_RegisterFill(frame, bg)
     Maines_RegisterBackdropTrim(frame)
+    Maines_DressSurface(frame, edgeSize or 2)
     return frame
 end
 
--- A plain flat-color panel (no palette recoloring) - used for small chrome like the credits
--- plate and the title nameplate, where a stable dark surface is what makes the light accent
--- text on top of it safe to read regardless of the active palette.
-local function Maines_MakeSlab(frame, bg, border, edgeSize)
-    frame:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = edgeSize or 1,
-    })
-    frame:SetBackdropColor(bg[1], bg[2], bg[3], 1)
-    frame:SetBackdropBorderColor(border[1], border[2], border[3], 1)
-    return frame
-end
-
--- Slowly spins a texture forever - used for the gear icons that stand in for real engraved
--- artwork until the next art pass.
-local function Maines_Spin(tex, duration)
-    if not tex or tex.maines_spin then return end
-    local ag = tex:CreateAnimationGroup()
-    local rot = ag:CreateAnimation("Rotation")
-    rot:SetDegrees(360)
-    rot:SetDuration(duration or 9)
-    rot:SetSmoothing("IN_OUT")
-    ag:SetLooping("REPEAT")
-    ag:Play()
-    tex.maines_spin = ag
-end
-
--- A small brass-toned icon, optionally spinning - the recurring decorative motif standing in
--- for real gnomish/goblin engineering artwork. iconPath defaults to the engineering gear.
-local function Maines_MakeGear(parent, size, spin, duration, iconPath)
-    local tex = parent:CreateTexture(nil, "OVERLAY")
-    tex:SetSize(size, size)
-    tex:SetTexture(iconPath or "Interface\\Icons\\Trade_Engineering")
-    tex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-    tex:SetVertexColor(0.62, 0.47, 0.20)
-    if spin then Maines_Spin(tex, duration) end
-    return Maines_RegisterTexture(tex)
-end
-
--- A static (non-spinning, non-recolored) badge icon - used for race-flavor emblems, where a
--- fixed appearance reads better than something that shifts with /maincolor.
-local function Maines_MakeBadge(parent, size, iconPath)
-    local tex = parent:CreateTexture(nil, "OVERLAY")
-    tex:SetSize(size, size)
-    tex:SetTexture(iconPath)
-    tex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-    return tex
-end
-
--- A literal small mosaic: four tiles in a checkerboard, two fixed dark and two recolorable -
--- standing in for the "▦" (mosaic) glyph, which several UI fonts (including the one this used
--- before) simply have no printable character for, so it rendered as nothing. Keeping half the
--- tiles fixed means the checkerboard pattern itself survives every /maincolor repaint instead
--- of turning into one flat square.
-local function Maines_MakeMosaicBadge(parent, size)
+-- The GLYPH stamp mark: a small engraved diamond - an accent-colored diamond with a dark one
+-- set inside it and a bright point at the centre. Drawn from rotated squares, since stamp
+-- characters like the old "▦" are missing from several UI fonts. The outer diamond follows
+-- /maincolor; the inner ones stay fixed so the mark always reads.
+local function Maines_MakeGlyphBadge(parent, size)
     local holder = CreateFrame("Frame", nil, parent)
     holder:SetSize(size, size)
-    local half = math.floor(size / 2)
-    local corners = {"TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", "BOTTOMRIGHT"}
-    for i, point in ipairs(corners) do
-        local tile = holder:CreateTexture(nil, "OVERLAY")
-        tile:SetTexture("Interface\\Buttons\\WHITE8X8")
-        tile:SetSize(half - 1, half - 1)
-        tile:SetPoint(point, holder, point, 0, 0)
-        if i % 2 == 0 then
-            tile:SetVertexColor(0.62, 0.47, 0.20)
-            Maines_RegisterTexture(tile)
-        else
-            tile:SetVertexColor(0.20, 0.13, 0.06)
-        end
+    local function diamond(edge, r, g, b, layer)
+        local tex = holder:CreateTexture(nil, "OVERLAY", nil, layer)
+        tex:SetTexture("Interface\\Buttons\\WHITE8X8")
+        tex:SetSize(edge, edge)
+        tex:SetPoint("CENTER")
+        tex:SetRotation(math.rad(45))
+        tex:SetVertexColor(r, g, b)
+        return tex
     end
+    -- a square's diagonal is edge * 1.414, so these fill `size` corner to corner
+    Maines_RegisterTexture(diamond(size * 0.70, ACCENT[1], ACCENT[2], ACCENT[3], 1))
+    diamond(size * 0.42, 0.20, 0.13, 0.06, 2)
+    diamond(math.max(2, size * 0.14), 1, 0.92, 0.70, 3)
     return holder
 end
 
@@ -657,26 +676,56 @@ end
 -- internals. Auto-sizes to fit its own text (plus padding) so it can never clip or overflow
 -- regardless of what the font's actual rendered width turns out to be - `width` is a MINIMUM,
 -- not a fixed size.
+-- Each button is the brass/palette color itself, with a soft top-light/bottom-shade bevel
+-- gradient over it. States change how bright the face is - resting, hover (lifted), pressed
+-- (shaded) - and "selected" (this UI uses Disable() to mark the current tab/bracket/mode) sinks
+-- the button into a dark walnut face with a full-color rim and an inverted bevel, so it reads as
+-- pushed in. Text color is picked from the face's brightness, so it stays readable for every
+-- /maincolor palette, including the very light ones.
 local BUTTON_BORDER_SHADE = 0.42
+local STATE_REST, STATE_HOVER, STATE_DOWN, STATE_SELECTED = 1.0, 1.18, 0.78, "selected"
 
-function Maines_SetButtonBaseColor(btn, r, g, b)
-    btn.baseColor = {r, g, b}
-    if btn:IsEnabled() then
-        btn:SetBackdropColor(r, g, b, 1)
-        btn:SetBackdropBorderColor(r * BUTTON_BORDER_SHADE, g * BUTTON_BORDER_SHADE, b * BUTTON_BORDER_SHADE, 1)
+local function Maines_PaintButton(btn, state)
+    local c = btn.baseColor
+    if not c then return end
+    local r, g, b
+    if state == STATE_SELECTED then
+        r = PLATE_BG[1] + (c[1] - PLATE_BG[1]) * 0.30
+        g = PLATE_BG[2] + (c[2] - PLATE_BG[2]) * 0.30
+        b = PLATE_BG[3] + (c[3] - PLATE_BG[3]) * 0.30
+        btn:SetBackdropBorderColor(c[1], c[2], c[3], 1)
+    else
+        r, g, b = math.min(1, c[1] * state), math.min(1, c[2] * state), math.min(1, c[3] * state)
+        btn:SetBackdropBorderColor(c[1] * BUTTON_BORDER_SHADE, c[2] * BUTTON_BORDER_SHADE, c[3] * BUTTON_BORDER_SHADE, 1)
+    end
+    btn:SetBackdropColor(r, g, b, 1)
+    if btn.bevel then
+        if state == STATE_SELECTED then
+            btn.bevel:SetGradient("VERTICAL", CreateColor(1, 1, 1, 0.06), CreateColor(0, 0, 0, 0.30))
+        else
+            btn.bevel:SetGradient("VERTICAL", CreateColor(0, 0, 0, 0.22), CreateColor(1, 1, 1, 0.24))
+        end
+    end
+    if btn.text then
+        if Maines_Luminance(r, g, b) > 0.55 then
+            btn.text:SetTextColor(INK[1], INK[2], INK[3])
+        else
+            btn.text:SetTextColor(PLATE_TEXT[1], PLATE_TEXT[2], PLATE_TEXT[3])
+        end
     end
 end
 
-local BUTTON_TINT = {0.70, 0.47, 0.18}
-local BUTTON_DISABLED = {0.40, 0.37, 0.32}
-local BUTTON_TEXT_DISABLED = {0.68, 0.64, 0.56}
+function Maines_SetButtonBaseColor(btn, r, g, b)
+    btn.baseColor = {r, g, b}
+    Maines_PaintButton(btn, btn:IsEnabled() and STATE_REST or STATE_SELECTED)
+end
 
 local function Maines_MakeButton(parent, width, height, text)
     local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
     btn:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8X8",
         edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 2,
+        edgeSize = 1,
     })
 
     local fs = btn:CreateFontString(nil, "OVERLAY")
@@ -686,35 +735,35 @@ local function Maines_MakeButton(parent, width, height, text)
     fs:SetTextColor(PLATE_TEXT[1], PLATE_TEXT[2], PLATE_TEXT[3])
     btn.text = fs
 
+    local bevel = btn:CreateTexture(nil, "ARTWORK")
+    bevel:SetPoint("TOPLEFT", 1, -1)
+    bevel:SetPoint("BOTTOMRIGHT", -1, 1)
+    bevel:SetTexture("Interface\\Buttons\\WHITE8X8")
+    btn.bevel = bevel
+
     local neededWidth = fs:GetStringWidth() + 26
     btn:SetSize(math.max(width or 0, neededWidth), height)
 
-    Maines_SetButtonBaseColor(btn, BUTTON_TINT[1], BUTTON_TINT[2], BUTTON_TINT[3])
+    Maines_SetButtonBaseColor(btn, ACCENT[1], ACCENT[2], ACCENT[3])
     Maines_RegisterButton(btn)
 
     btn:SetScript("OnEnter", function(self)
-        if self:IsEnabled() and self.baseColor then
-            local c = self.baseColor
-            self:SetBackdropColor(math.min(1, c[1] * 1.3), math.min(1, c[2] * 1.3), math.min(1, c[3] * 1.3), 1)
+        if self:IsEnabled() then Maines_PaintButton(self, STATE_HOVER) end
+        if self.tooltip then
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            GameTooltip:SetText(self.tooltip, 1, 1, 1, 1, true)
+            GameTooltip:Show()
         end
     end)
     btn:SetScript("OnLeave", function(self)
-        if self:IsEnabled() and self.baseColor then
-            local c = self.baseColor
-            self:SetBackdropColor(c[1], c[2], c[3], 1)
-        end
+        if self:IsEnabled() then Maines_PaintButton(self, STATE_REST) end
+        if self.tooltip then GameTooltip:Hide() end
     end)
     btn:SetScript("OnMouseDown", function(self)
-        if self:IsEnabled() and self.baseColor then
-            local c = self.baseColor
-            self:SetBackdropColor(c[1] * 0.65, c[2] * 0.65, c[3] * 0.65, 1)
-        end
+        if self:IsEnabled() then Maines_PaintButton(self, STATE_DOWN) end
     end)
     btn:SetScript("OnMouseUp", function(self)
-        if self:IsEnabled() and self.baseColor then
-            local c = self.baseColor
-            self:SetBackdropColor(math.min(1, c[1] * 1.3), math.min(1, c[2] * 1.3), math.min(1, c[3] * 1.3), 1)
-        end
+        if self:IsEnabled() then Maines_PaintButton(self, STATE_HOVER) end
     end)
 
     function btn:SetText(t)
@@ -724,42 +773,137 @@ local function Maines_MakeButton(parent, width, height, text)
     end
     function btn:GetText() return fs:GetText() end
 
+    -- Disable() doubles as "this is the selected one" throughout this UI, so it paints the
+    -- strong selected face rather than a greyed-out one.
     local realDisable, realEnable = btn.Disable, btn.Enable
     function btn:Disable()
         realDisable(self)
-        self:SetBackdropColor(BUTTON_DISABLED[1], BUTTON_DISABLED[2], BUTTON_DISABLED[3], 1)
-        self:SetBackdropBorderColor(0.15, 0.15, 0.15, 1)
-        fs:SetTextColor(BUTTON_TEXT_DISABLED[1], BUTTON_TEXT_DISABLED[2], BUTTON_TEXT_DISABLED[3])
+        Maines_PaintButton(self, STATE_SELECTED)
     end
     function btn:Enable()
         realEnable(self)
-        if self.baseColor then
-            Maines_SetButtonBaseColor(self, self.baseColor[1], self.baseColor[2], self.baseColor[3])
-        end
-        fs:SetTextColor(PLATE_TEXT[1], PLATE_TEXT[2], PLATE_TEXT[3])
+        Maines_PaintButton(self, STATE_REST)
     end
 
     return btn
 end
 
--- Same button, with a small icon to its left - used for the tab row so tabs read as "image
--- buttons" instead of plain text.
-local function Maines_MakeIconButton(parent, width, height, text, iconPath)
-    local btn = Maines_MakeButton(parent, width, height, text)
+-- A tab in the row under the title: icon above its label on the dark walnut tab strip, a soft
+-- highlight on hover, and - for the open page - a parchment surface that joins it to the
+-- content panel below, like a folder tab, with an accent bar along its top edge.
+local function Maines_MakeNavButton(parent, width, height, text, iconPath)
+    local btn = CreateFrame("Button", nil, parent)
+    btn:SetSize(width, height)
+
+    local bg = btn:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetTexture("Interface\\Buttons\\WHITE8X8")
+    -- Same color the content panel's fill ends up after /maincolor (FILL_BLEND), so the open
+    -- page's entry keeps visually joining the panel whatever the palette.
+    local function paintBg(r, g, b)
+        local t = r and FILL_BLEND or 0
+        local cr = CONTENT_BG[1] * (1 - t) + (r or 0) * t
+        local cg = CONTENT_BG[2] * (1 - t) + (g or 0) * t
+        local cb = CONTENT_BG[3] * (1 - t) + (b or 0) * t
+        bg:SetGradient("VERTICAL", CreateColor(cr, cg, cb, 1), CreateColor(cr * 0.86, cg * 0.86, cb * 0.86, 1))
+    end
+    paintBg()
+    table.insert(Maines_Textures, {repaint = paintBg})
+    bg:Hide()
+    btn.bg = bg
+
+    local hover = btn:CreateTexture(nil, "BORDER")
+    hover:SetAllPoints()
+    hover:SetTexture("Interface\\Buttons\\WHITE8X8")
+    hover:SetVertexColor(1, 0.9, 0.7, 0.08)
+    hover:Hide()
+
+    local bar = btn:CreateTexture(nil, "ARTWORK")
+    bar:SetTexture("Interface\\Buttons\\WHITE8X8")
+    bar:SetVertexColor(ACCENT[1], ACCENT[2], ACCENT[3])
+    bar:SetPoint("TOPLEFT")
+    bar:SetPoint("TOPRIGHT")
+    bar:SetHeight(3)
+    bar:Hide()
+    Maines_RegisterTexture(bar)
+    btn.bar = bar
+
     local icon = btn:CreateTexture(nil, "ARTWORK")
-    icon:SetSize(height - 6, height - 6)
+    icon:SetSize(20, 20)
     icon:SetTexture(iconPath)
-    icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-    icon:SetPoint("LEFT", 8, 0)
-    btn.text:ClearAllPoints()
-    btn.text:SetPoint("LEFT", icon, "RIGHT", 4, 0)
-    btn:SetWidth(math.max(width or 0, btn.text:GetStringWidth() + icon:GetWidth() + 18))
+    icon:SetPoint("TOP", 0, -5)
+    btn.icon = icon
+
+    local fs = btn:CreateFontString(nil, "OVERLAY")
+    fs:SetFontObject(Maines_Font_Button)
+    fs:SetPoint("BOTTOM", 0, 5)
+    fs:SetText(text)
+    btn.text = fs
+
+    function btn:SetSelected(selected)
+        self.selected = selected
+        if selected then
+            bg:Show(); bar:Show()
+            fs:SetTextColor(INK[1], INK[2], INK[3])
+            icon:SetVertexColor(INK[1], INK[2], INK[3])
+        else
+            bg:Hide(); bar:Hide()
+            fs:SetTextColor(PLATE_TEXT_SOFT[1], PLATE_TEXT_SOFT[2], PLATE_TEXT_SOFT[3])
+            icon:SetVertexColor(PLATE_TEXT_SOFT[1], PLATE_TEXT_SOFT[2], PLATE_TEXT_SOFT[3])
+        end
+    end
+    btn:SetScript("OnEnter", function(self)
+        hover:Show()
+        if not self.selected then
+            fs:SetTextColor(PLATE_TEXT[1], PLATE_TEXT[2], PLATE_TEXT[3])
+            icon:SetVertexColor(PLATE_TEXT[1], PLATE_TEXT[2], PLATE_TEXT[3])
+        end
+    end)
+    btn:SetScript("OnLeave", function(self)
+        hover:Hide()
+        self:SetSelected(self.selected)
+    end)
+    btn:SetSelected(false)
     return btn
+end
+
+-- A section heading: engraved ink text centered over a thin accent rule that fades out toward
+-- both ends, placed at y on `parent` within `width` (x is the block's left edge). Returns the
+-- heading and the y just below its rule.
+local function Maines_MakeHeading(parent, text, x, y, width)
+    local fs = parent:CreateFontString(nil, "OVERLAY")
+    fs:SetFontObject(Maines_Font_Heading)
+    fs:SetPoint("TOPLEFT", x, y)
+    fs:SetWidth(width)
+    fs:SetJustifyH("CENTER")
+    fs:SetText(text)
+    fs:SetTextColor(INK[1], INK[2], INK[3])
+    fs:SetShadowColor(1, 0.95, 0.82, 0.5)
+    fs:SetShadowOffset(0, -1)
+
+    local rule = parent:CreateTexture(nil, "ARTWORK")
+    rule:SetTexture("Interface\\Buttons\\WHITE8X8")
+    rule:SetHeight(1)
+    rule:SetPoint("TOPLEFT", fs, "BOTTOMLEFT", 0, -4)
+    rule:SetWidth(width / 2)
+    local ruleR = parent:CreateTexture(nil, "ARTWORK")
+    ruleR:SetTexture("Interface\\Buttons\\WHITE8X8")
+    ruleR:SetHeight(1)
+    ruleR:SetPoint("LEFT", rule, "RIGHT")
+    ruleR:SetWidth(width / 2)
+    local function paintRule(r, g, b)
+        r, g, b = r or ACCENT[1], g or ACCENT[2], b or ACCENT[3]
+        rule:SetGradient("HORIZONTAL", CreateColor(r, g, b, 0), CreateColor(r, g, b, 0.75))
+        ruleR:SetGradient("HORIZONTAL", CreateColor(r, g, b, 0.75), CreateColor(r, g, b, 0))
+    end
+    paintRule()
+    table.insert(Maines_Textures, {repaint = paintRule})
+    return fs, y - fs:GetStringHeight() - 12
 end
 
 -- Slash command handlers:
 SlashCmdList["MAINMUSIC"] = function() _G["PlayedMusic_DB"] = "noplayed" end
-SlashCmdList["MAINSTAMP"] = function() print("The Mosaic Stamp [ ▦ ]") end
+SlashCmdList["MAINSTAMP"] = function() print("|cFF00FF00Maines|r: The |cFFFFE4B5GLYPH|r Stamp") end
 SlashCmdList["MAINCOLOR"] = function()
     if #Maines_Textures == 0 then
         print("|cFF00FF00Maines|r: no textures loaded yet — open /maines once first")
@@ -1063,10 +1207,27 @@ local function Maines_TagMessage(msg, chatType)
         if Maines_Debug then print("|cFF00FF00Maines debug|r: no filter, checked Channel_Types, valid="..tostring(valid)) end
     end
 
-    local alreadyTagged = string.find(msg, left..name..right, 1, true)
+    -- animate.lua may swap in the current frame of an animated tag; without it (or with the
+    -- animation off) this is the plain left..name..right tag it always was.
+    local plainTag = left .. name .. right
+    local tag = plainTag
+    if ns.AnimatedTag then tag = ns.AnimatedTag(left, name, right) or tag end
+    -- A chat line holds 255 bytes; if a long animated frame (e.g. a saved phrase) would push the
+    -- message past that, fall back to the plain tag rather than risk losing the end.
+    if #tag + 1 + #msg > 255 then tag = plainTag end
+
+    -- Already tagged: the plain tag anywhere (the original check), or - for a message resent
+    -- from chat history - any animation frame at the very start.
+    local alreadyTagged = string.find(msg, plainTag, 1, true) ~= nil
+    if not alreadyTagged and ns.AllTagFrames then
+        for _, frame in ipairs(ns.AllTagFrames(left, name, right)) do
+            if msg:sub(1, #frame + 1) == frame .. " " then alreadyTagged = true; break end
+        end
+    end
     if Maines_Debug then print("|cFF00FF00Maines debug|r: alreadyTagged="..tostring(alreadyTagged)) end
     if valid and not alreadyTagged then
-        return left .. name .. right .. " " .. msg
+        if ns.OnTagSent then ns.OnTagSent() end
+        return tag .. " " .. msg
     end
     return msg
 end
@@ -1128,110 +1289,142 @@ end
 local Help_Sections = {
     {
         title = "Setting Up Your Main",
+        icon = "main",
         color = "FF69B4",
         winColor = "B23A72",
         entries = {
-            {icon = "INV_Misc_Note_01", cmd = "/mains", args = "<name> <bracket>",
+            {cmd = "/mains", args = "<name> <bracket>",
                 desc = "Set your main's name and bracket style.",
                 example = "/mains Misamu (  ->  tags chat as (Misamu)"},
-            {icon = "INV_Misc_Spyglass_03", cmd = "/main", args = "",
+            {cmd = "/main", args = "",
                 desc = "Print your currently saved main name and bracket.",
                 example = "/main"},
-            {icon = "INV_Misc_Gem_02", cmd = "/bracket", args = "",
+            {cmd = "/bracket", args = "",
                 desc = "List every built-in bracket style by name.",
                 example = "/bracket"},
         },
     },
     {
         title = "On Your Main vs. an Alt",
+        icon = "behavior",
         color = "3CE7FF",
         winColor = "1B6E96",
         entries = {
-            {icon = "INV_Misc_QuestionMark", cmd = "/mainhide", args = "",
+            {cmd = "/mainhide", args = "",
                 desc = "Hide the tag while you're playing your own main. (default)",
                 example = "/mainhide", note = "Alts are always tagged either way - this only affects the main itself."},
-            {icon = "INV_Misc_QuestionMark", cmd = "/mainshow", args = "",
+            {cmd = "/mainshow", args = "",
                 desc = "Always tag, even while playing your own main.",
                 example = "/mainshow"},
         },
     },
     {
         title = "Chat Channel Filtering",
+        icon = "channels",
         color = "77DD77",
         winColor = "2E7D32",
         entries = {
-            {icon = "INV_Letter_15", cmd = "/mainchat", args = "SAY,GUILD,...",
+            {cmd = "/mainchat", args = "SAY,GUILD,...",
                 desc = "Only tag the listed channels (comma-separated - case and spacing don't matter).",
                 example = "/mainchat SAY,GUILD,PARTY"},
-            {icon = "INV_Letter_15", cmd = "/mainchat", args = "(no args)",
+            {cmd = "/mainchat", args = "(no args)",
                 desc = "Clear the filter - back to tagging every channel.",
                 example = "/mainchat"},
-            {icon = "INV_Letter_15", cmd = "/mainchat", args = "list",
+            {cmd = "/mainchat", args = "list",
                 desc = "Print the channels currently in the filter.",
                 example = "/mainchat list"},
-            {icon = "INV_Letter_15", cmd = "/mainchat", args = "+CHANNEL / -CHANNEL",
+            {cmd = "/mainchat", args = "+CHANNEL / -CHANNEL",
                 desc = "Add or remove one or more channels without retyping the whole list.",
                 example = "/mainchat -SAY,-YELL", note = "Comma-separate several +/- ops in one go. Can't mix these with plain channel names in the same command - that's rejected outright rather than guessed at."},
-            {icon = "INV_Letter_15", cmd = "/mainchat", args = "mode include | exclude",
+            {cmd = "/mainchat", args = "mode include | exclude",
                 desc = "Switch whether the list above means \"tag ONLY these\" (default) or \"tag everything EXCEPT these\".",
                 example = "/mainchat mode exclude",
                 note = "\"mode\" with no argument prints which one is active. include+exclude use the same list from above."},
-            {icon = "INV_Letter_15", cmd = "/mainchat", args = "sticky",
+            {cmd = "/mainchat", args = "sticky",
                 desc = "Toggle whether the current filter survives a reload.",
                 example = "/mainchat sticky",
                 note = "Off by default: any filter resets to \"tag everything\" on your next reload unless you turn this on. Also resettable instantly by middle-clicking the minimap icon."},
         },
     },
     {
+        title = "Phrases, Animation & Badges",
+        icon = "badges",
+        color = "C39BFF",
+        winColor = "6A3FA0",
+        entries = {
+            {cmd = "/mainphrase", args = "add <text> | del <n> | list | clear",
+                desc = "Save words, sentences or symbols to drop into chat with your shortcut key.",
+                example = "/mainphrase add Looking for group!",
+                note = "Set the keys on the Phrases page, or in Key Bindings > AddOns > Maines. Each press swaps in the next phrase; Enter sends."},
+            {cmd = "/mainanim", args = "<style> | message | time <seconds>",
+                desc = "Make your tag change a little with every message (or every so often).",
+                example = "/mainanim typewriter",
+                note = "Styles: off, brackets, typewriter, wave, twinkle, phrases."},
+            {cmd = "/mainbadge", args = "list | show <n> | send <n> [channel]",
+                desc = "Send a multi-line Textual Badge (a text picture) to chat.",
+                example = "/mainbadge send 4 guild",
+                note = "One badge every 3 minutes. \"show\" previews it only to you."},
+        },
+    },
+    {
         title = "Cosmetic & Minimap",
+        icon = "cosmetic",
         color = "FFA500",
         winColor = "A8631B",
         entries = {
-            {icon = "INV_Misc_Dice_01", cmd = "/maincolor", args = "",
+            {cmd = "/maincolor", args = "",
                 desc = "Repaint the Maines UI with a random public-domain art palette.",
                 example = "/maincolor", note = "Also triggered by right-clicking the minimap icon."},
-            {icon = "INV_Misc_Map_01", cmd = "/mainmap", args = "",
+            {cmd = "/mainmap", args = "",
                 desc = "Toggle the Maines minimap icon on/off.",
                 example = "/mainmap", note = "The icon itself: left-click shows/hides Maines, right-click recolors it, middle-click resets the /mainchat filter."},
-            {icon = "INV_Misc_Gear_08", cmd = "/maines", args = "",
+            {cmd = "/maines", args = "",
                 desc = "Open the Maines UI (same as left-clicking the minimap icon).",
                 example = "/maines"},
-            {icon = "INV_Misc_Drum_01", cmd = "/mainmusic", args = "",
+            {cmd = "/mainmusic", args = "",
                 desc = "Replay the intro jingle next time you open the UI.",
                 example = "/mainmusic"},
         },
     },
     {
         title = "Utility",
+        icon = "help",
         color = "AAAAAA",
         winColor = "5A5248",
         entries = {
-            {icon = "INV_Misc_Coin_02", cmd = "/mainstamp", args = "",
+            {cmd = "/mainnote", args = "",
+                desc = "Read the note from the author, with what's new in this update.",
+                example = "/mainnote", note = "It also pops up once by itself the first time a new update runs."},
+            {cmd = "/mainstamp", args = "",
                 desc = "Print the current build stamp.",
                 example = "/mainstamp"},
-            {icon = "INV_Misc_Bag_10", cmd = "/maindebug", args = "",
+            {cmd = "/maindebug", args = "",
                 desc = "Toggle live debug printing of every tagging decision.",
                 example = "/maindebug", note = "Turn this on first if tagging ever silently stops working."},
         },
     },
 }
 
-local function Maines_HelpIcon(tex, size)
-    return ("|TInterface\\Icons\\%s:%d:%d:-1:0|t"):format(tex, size or 16, size or 16)
+-- One of Maines' own icons inline in text, tinted `hex` (they're white line art).
+local function Maines_HelpIcon(name, size, hex)
+    size = size or 16
+    local r, g, b = Maines_HexToRGB(hex or "F5E8C7")
+    return ("|T%s%s.tga:%d:%d:0:0:64:64:0:64:0:64:%d:%d:%d|t"):format(
+        ICONS, name, size, size, r * 255, g * 255, b * 255)
 end
 
 -- Chat fallback: the original print-based reference, kept behind "/mainhelp text" for anyone
 -- who wants a copyable/scrollable-in-chat version instead of the window below.
 local function Maines_PrintHelpToChat()
     print(("%s |cFFFFD100Maines — Command Reference|r %s"):format(
-        Maines_HelpIcon("INV_Misc_QuestionMark"), Maines_HelpIcon("INV_Misc_QuestionMark")))
+        Maines_HelpIcon("help", 16, "FFD100"), Maines_HelpIcon("help", 16, "FFD100")))
     print(" ")
 
     for _, section in ipairs(Help_Sections) do
         print(("|cFF%s%s|r"):format(section.color, section.title))
         for _, e in ipairs(section.entries) do
             local header = e.args ~= "" and (e.cmd.." |cFFFFFFFF"..e.args.."|r") or e.cmd
-            print(("  %s |cFF%s%s|r"):format(Maines_HelpIcon(e.icon), section.color, header))
+            print(("  %s |cFF%s%s|r"):format(Maines_HelpIcon(section.icon, 16, section.color), section.color, header))
             print("      |cFFCCCCCC"..e.desc.."|r")
             print("      |cFF888888e.g.|r |cFFEEEEEE"..e.example.."|r")
             if e.note then
@@ -1267,16 +1460,15 @@ Help_Frame:SetScript("OnKeyDown", function(self, key)
     if key == "ESCAPE" then self:Hide() end
 end)
 Help_Frame:Hide()
-Maines_MakeFlatBackdrop(Help_Frame, WINDOW_BG, BORDER_DARK, 18)
-
-Maines_MakeGear(Help_Frame, 26, true, 11, "Interface\\Icons\\Trade_Engineering"):SetPoint("TOPLEFT", 10, -8)
-Maines_MakeGear(Help_Frame, 26, true, 13, "Interface\\Icons\\INV_Gizmo_03"):SetPoint("BOTTOMRIGHT", -10, 8)
+Maines_MakeFlatBackdrop(Help_Frame, WINDOW_BG, BORDER_DARK, 3)
 
 Help_Frame.title = Help_Frame:CreateFontString(nil, "OVERLAY")
-Help_Frame.title:SetFontObject(Maines_Font_Title)
-Help_Frame.title:SetPoint("TOP", 0, -24)
-Help_Frame.title:SetText("Maines — Command Reference")
-Help_Frame.title:SetTextColor(0.30, 0.20, 0.08)
+Help_Frame.title:SetFontObject(Maines_Font_Display)
+Help_Frame.title:SetPoint("TOP", 0, -22)
+Help_Frame.title:SetText("Command Reference")
+Help_Frame.title:SetTextColor(0.20, 0.11, 0.03)
+Help_Frame.title:SetShadowColor(1, 0.94, 0.78, 0.6)
+Help_Frame.title:SetShadowOffset(0, -1)
 
 local helpClose = CreateFrame("Button", nil, Help_Frame, "UIPanelCloseButton")
 helpClose:SetPoint("TOPRIGHT", -4, -4)
@@ -1285,7 +1477,7 @@ helpClose:SetScript("OnClick", function() Help_Frame:Hide() end)
 local helpPanel = CreateFrame("Frame", nil, Help_Frame, "BackdropTemplate")
 helpPanel:SetPoint("TOPLEFT", 26, -78)
 helpPanel:SetPoint("BOTTOMRIGHT", -26, 22)
-Maines_MakeFlatBackdrop(helpPanel, CONTENT_BG, BORDER_DARK, 14)
+Maines_MakeFlatBackdrop(helpPanel, CONTENT_BG, BORDER_DARK, 2)
 
 local helpScroll = CreateFrame("ScrollFrame", "Maines_Help_ScrollFrame", helpPanel, "UIPanelScrollFrameTemplate")
 helpScroll:SetPoint("TOPLEFT", 10, -10)
@@ -1306,35 +1498,37 @@ local function Maines_BuildHelpContent()
     -- example as plain colored text so the panel needs no art at all.
     local exampleFS = helpContent:CreateFontString(nil, "OVERLAY")
     exampleFS:SetFontObject(Maines_Font_Body)
-    exampleFS:SetPoint("TOPLEFT", 6, y)
+    exampleFS:SetPoint("TOP", 0, y)
     exampleFS:SetWidth(HELP_CONTENT_WIDTH - 12)
-    exampleFS:SetJustifyH("LEFT")
-    exampleFS:SetText("|cFF6B5F4DExample tagged message:|r  |cFF3A2A1E(Misamu)|r Hello there, guildies!")
+    exampleFS:SetJustifyH("CENTER")
+    exampleFS:SetText(HEX_SOFT .. "Example tagged message:|r  " .. HEX_ACCENT .. "(Misamu)|r " .. HEX_TEXT .. "Hello there, guildies!|r")
     y = y - exampleFS:GetStringHeight() - 22
 
     for _, section in ipairs(Help_Sections) do
         local winColor = section.winColor or section.color
 
-        local header = helpContent:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-        header:SetPoint("TOPLEFT", 6, y)
-        header:SetJustifyH("LEFT")
-        header:SetText(section.title)
+        local header = helpContent:CreateFontString(nil, "OVERLAY")
+        header:SetFontObject(Maines_Font_Heading)
+        header:SetPoint("TOP", 0, y)
+        header:SetWidth(HELP_CONTENT_WIDTH - 12)
+        header:SetJustifyH("CENTER")
+        header:SetText(Maines_HelpIcon(section.icon, 18, winColor) .. "  " .. section.title)
         local r, g, b = Maines_HexToRGB(winColor)
         header:SetTextColor(r, g, b)
         y = y - header:GetStringHeight() - 10
 
         for _, e in ipairs(section.entries) do
             local entryFS = helpContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            entryFS:SetPoint("TOPLEFT", 6, y)
+            entryFS:SetPoint("TOP", 0, y)
             entryFS:SetWidth(HELP_CONTENT_WIDTH - 12)
-            entryFS:SetJustifyH("LEFT")
+            entryFS:SetJustifyH("CENTER")
 
             local cmdLine = e.args ~= "" and (e.cmd.." |cFF2A2118"..e.args.."|r") or e.cmd
-            local text = Maines_HelpIcon(e.icon, 18).." |cFF"..winColor..cmdLine.."|r\n"
-                .."     |cFF4A4030"..e.desc.."|r\n"
-                .."     |cFF8A7A63e.g.|r |cFF3A2A1E"..e.example.."|r"
+            local text = "|cFF"..winColor..cmdLine.."|r\n"
+                .."|cFF4A4030"..e.desc.."|r\n"
+                .."|cFF8A7A63e.g.|r |cFF3A2A1E"..e.example.."|r"
             if e.note then
-                text = text.."\n     |cFF8A7A63note:|r |cFF6B5F4D"..e.note.."|r"
+                text = text.."\n|cFF8A7A63note:|r |cFF6B5F4D"..e.note.."|r"
             end
             entryFS:SetText(text)
 
@@ -1358,16 +1552,16 @@ SlashCmdList["MAINHELP"] = function(msg)
     Help_Frame:Show()
 end
 
--- Gently spins the minimap icon's texture forever, purely for fun.
+-- The minimap icon turns once, slowly, when the mouse moves onto it - it used to spin
+-- forever, which was more distracting than fun.
 local function Maines_AnimateMinimapButton(button)
     if not button or not button.icon or button.maines_anim then return end
     local ag = button.icon:CreateAnimationGroup()
     local rot = ag:CreateAnimation("Rotation")
-    rot:SetDegrees(360)
-    rot:SetDuration(8)
+    rot:SetDegrees(-360)
+    rot:SetDuration(1.6)
     rot:SetSmoothing("IN_OUT")
-    ag:SetLooping("REPEAT")
-    ag:Play()
+    button:HookScript("OnEnter", function() if not ag:IsPlaying() then ag:Play() end end)
     button.maines_anim = ag
 end
 
@@ -1382,9 +1576,7 @@ function maines:SetupMinimapIcon()
     local dataObject = ldb:NewDataObject("Maines", {
         type = "launcher",
         text = "Maines",
-        -- Placeholder icon until the next art pass - a stock gizmo icon fits the
-        -- gnomish/goblin-engineering theme without needing any custom art.
-        icon = "Interface\\Icons\\INV_Gizmo_02",
+        icon = LOGO_TEXTURE,
         OnClick = function(_, button)
             if button == "LeftButton" then
                 Maines_ToggleMainWindow()
@@ -1468,10 +1660,11 @@ end
 -- bright-on-bright text.
 
 Maines_Window = CreateFrame("Frame", "Maines_Frame", UIParent, "BackdropTemplate")
-Maines_Window:SetSize(480, 700)
+Maines_Window:SetSize(660, 680)
 Maines_Window:SetPoint("CENTER")
 Maines_Window:SetFrameStrata("DIALOG")
 Maines_Window:SetMovable(true)
+Maines_Window:SetClampedToScreen(true)
 Maines_Window:EnableMouse(true)
 Maines_Window:RegisterForDrag("LeftButton")
 Maines_Window:SetScript("OnDragStart", Maines_Window.StartMoving)
@@ -1481,64 +1674,200 @@ Maines_Window:SetScript("OnKeyDown", function(self, key)
     if key == "ESCAPE" then Maines_HideMainWindow() end
 end)
 Maines_Window:Hide()
-Maines_MakeFlatBackdrop(Maines_Window, WINDOW_BG, BORDER_DARK, 20)
+Maines_MakeFlatBackdrop(Maines_Window, WINDOW_BG, BORDER_DARK, 3)
 
--- Corner "engineering" accents - three different stock icons (not just one repeated) for a
--- bit of image variety, each slowly spinning like idle machinery.
-Maines_MakeGear(Maines_Window, 30, true, 10, "Interface\\Icons\\Trade_Engineering"):SetPoint("TOPLEFT", 14, -12)
-Maines_MakeGear(Maines_Window, 22, true, 14, "Interface\\Icons\\INV_Gizmo_02"):SetPoint("BOTTOMLEFT", 14, 12)
-Maines_MakeGear(Maines_Window, 22, true, 15, "Interface\\Icons\\INV_Gizmo_01"):SetPoint("BOTTOMRIGHT", -14, 12)
+-- Opening the window is a short, quiet fade-in - the only motion in the window.
+local windowFade = Maines_Window:CreateAnimationGroup()
+local windowFadeIn = windowFade:CreateAnimation("Alpha")
+windowFadeIn:SetFromAlpha(0)
+windowFadeIn:SetToAlpha(1)
+windowFadeIn:SetDuration(0.18)
+windowFadeIn:SetSmoothing("OUT")
+Maines_Window:HookScript("OnShow", function() windowFade:Play() end)
 
-local windowTitle = Maines_Window:CreateFontString(nil, "OVERLAY")
-windowTitle:SetFontObject(Maines_Font_Title)
-windowTitle:SetPoint("TOP", 0, -12)
-windowTitle:SetText("MAINES")
-windowTitle:SetTextColor(INK[1], INK[2], INK[3])
+-- A soft outer glow around the window: one round falloff texture (textures/glow.tga) cut into
+-- four corners and four stretched edges just outside the frame. Kept faint on purpose, and it
+-- takes on the /maincolor accent.
+local function Maines_AddOuterGlow(frame, size, alpha)
+    local parts = {}
+    local function piece(l, r, t, b)
+        local tex = frame:CreateTexture(nil, "BACKGROUND", nil, -8)
+        tex:SetTexture(GLOW_TEXTURE)
+        tex:SetTexCoord(l, r, t, b)
+        tex:SetBlendMode("ADD")
+        tex:SetAlpha(alpha)
+        parts[#parts + 1] = tex
+        return tex
+    end
+    local tl = piece(0, 0.5, 0, 0.5); tl:SetSize(size, size); tl:SetPoint("BOTTOMRIGHT", frame, "TOPLEFT")
+    local tr = piece(0.5, 1, 0, 0.5); tr:SetSize(size, size); tr:SetPoint("BOTTOMLEFT", frame, "TOPRIGHT")
+    local bl = piece(0, 0.5, 0.5, 1); bl:SetSize(size, size); bl:SetPoint("TOPRIGHT", frame, "BOTTOMLEFT")
+    local br = piece(0.5, 1, 0.5, 1); br:SetSize(size, size); br:SetPoint("TOPLEFT", frame, "BOTTOMRIGHT")
+    local top = piece(0.49, 0.51, 0, 0.5); top:SetHeight(size)
+    top:SetPoint("BOTTOMLEFT", frame, "TOPLEFT"); top:SetPoint("BOTTOMRIGHT", frame, "TOPRIGHT")
+    local bottom = piece(0.49, 0.51, 0.5, 1); bottom:SetHeight(size)
+    bottom:SetPoint("TOPLEFT", frame, "BOTTOMLEFT"); bottom:SetPoint("TOPRIGHT", frame, "BOTTOMRIGHT")
+    local left = piece(0, 0.5, 0.49, 0.51); left:SetWidth(size)
+    left:SetPoint("TOPRIGHT", frame, "TOPLEFT"); left:SetPoint("BOTTOMRIGHT", frame, "BOTTOMLEFT")
+    local right = piece(0.5, 1, 0.49, 0.51); right:SetWidth(size)
+    right:SetPoint("TOPLEFT", frame, "TOPRIGHT"); right:SetPoint("BOTTOMLEFT", frame, "BOTTOMRIGHT")
+    local function paint(r, g, b)
+        r, g, b = r or 1, g or 0.78, b or 0.42
+        for _, tex in ipairs(parts) do tex:SetVertexColor(r, g, b) end
+    end
+    paint()
+    table.insert(Maines_Textures, {repaint = paint})
+end
+Maines_AddOuterGlow(Maines_Window, 22, 0.35)
 
--- Small gnomish/goblin race-flavor badges flanking the title - purely decorative, and left
--- unregistered so they always show their true race colors regardless of /maincolor.
-Maines_MakeBadge(Maines_Window, 20, "Interface\\Icons\\Achievement_Character_Gnome_Male"):SetPoint("RIGHT", windowTitle, "LEFT", -10, 0)
-Maines_MakeBadge(Maines_Window, 20, "Interface\\Icons\\Achievement_Character_Goblin_Male"):SetPoint("LEFT", windowTitle, "RIGHT", 10, 0)
+-- Dresses a band (the window header, the note's title strip) as brushed brass: a warm gradient,
+-- tiled brushed-metal streaks and paper grain, darker toward both ends, a fine highlight along
+-- the top edge and an accent rule along the bottom.
+local function Maines_DressBrassBand(band)
+    local headerBg = band:CreateTexture(nil, "BACKGROUND", nil, 0)
+    headerBg:SetAllPoints()
+    headerBg:SetTexture("Interface\\Buttons\\WHITE8X8")
+    headerBg:SetGradient("VERTICAL", CreateColor(0.60, 0.45, 0.24, 1), CreateColor(0.82, 0.67, 0.42, 1))
 
--- An engraved-looking dark nameplate under the title - the one bit of decorative text that IS
--- recolored by /maincolor, safe to do because it sits on a fixed dark plate (light accent text
--- on a dark plate stays readable across every palette, unlike text on the pale parchment).
-local titlePlate = CreateFrame("Frame", nil, Maines_Window, "BackdropTemplate")
-titlePlate:SetSize(360, 20)
-titlePlate:SetPoint("TOP", windowTitle, "BOTTOM", 0, -4)
-Maines_MakeSlab(titlePlate, PLATE_BG, BORDER_DARK, 1)
+    local headerBrush = band:CreateTexture(nil, "BACKGROUND", nil, 1)
+    headerBrush:SetAllPoints()
+    headerBrush:SetTexture(BRUSHED_TEXTURE, "REPEAT", "REPEAT")
+    headerBrush:SetHorizTile(true)
+    headerBrush:SetVertTile(true)
+    headerBrush:SetVertexColor(0.36, 0.22, 0.07)
+    headerBrush:SetAlpha(0.38)
 
-local windowSubtitle = titlePlate:CreateFontString(nil, "OVERLAY")
+    local headerGrain = band:CreateTexture(nil, "BACKGROUND", nil, 2)
+    headerGrain:SetAllPoints()
+    headerGrain:SetTexture(GRAIN_TEXTURE, "REPEAT", "REPEAT")
+    headerGrain:SetHorizTile(true)
+    headerGrain:SetVertTile(true)
+    headerGrain:SetVertexColor(0.30, 0.18, 0.06)
+    headerGrain:SetAlpha(0.22)
+
+    for _, side in ipairs({"LEFT", "RIGHT"}) do
+        local shade = band:CreateTexture(nil, "BACKGROUND", nil, 3)
+        shade:SetTexture("Interface\\Buttons\\WHITE8X8")
+        shade:SetPoint("TOP" .. side)
+        shade:SetPoint("BOTTOM" .. side)
+        shade:SetWidth(160)
+        local dark, clear = CreateColor(0.18, 0.09, 0.02, 0.30), CreateColor(0.18, 0.09, 0.02, 0)
+        if side == "LEFT" then
+            shade:SetGradient("HORIZONTAL", dark, clear)
+        else
+            shade:SetGradient("HORIZONTAL", clear, dark)
+        end
+    end
+
+    local headerShine = band:CreateTexture(nil, "ARTWORK")
+    headerShine:SetTexture("Interface\\Buttons\\WHITE8X8")
+    headerShine:SetVertexColor(1, 0.96, 0.85)
+    headerShine:SetAlpha(0.35)
+    headerShine:SetHeight(1)
+    headerShine:SetPoint("TOPLEFT")
+    headerShine:SetPoint("TOPRIGHT")
+
+    local headerRule = band:CreateTexture(nil, "ARTWORK")
+    headerRule:SetTexture("Interface\\Buttons\\WHITE8X8")
+    headerRule:SetVertexColor(ACCENT[1], ACCENT[2], ACCENT[3])
+    headerRule:SetAlpha(0.8)
+    headerRule:SetHeight(1)
+    headerRule:SetPoint("BOTTOMLEFT")
+    headerRule:SetPoint("BOTTOMRIGHT")
+    Maines_RegisterTexture(headerRule)
+end
+
+-- Header: a band of brushed brass across the top (Maines_DressBrassBand above), with the title
+-- engraved in the middle.
+local HEADER_HEIGHT = 60
+local header = CreateFrame("Frame", nil, Maines_Window)
+header:SetPoint("TOPLEFT", 3, -3)
+header:SetPoint("TOPRIGHT", -3, -3)
+header:SetHeight(HEADER_HEIGHT)
+
+Maines_DressBrassBand(header)
+
+-- The title: letter-spaced capitals in the engraved display face, dark ink with a pale edge
+-- below each stroke so it reads as pressed into the brass.
+local windowTitle = header:CreateFontString(nil, "OVERLAY")
+windowTitle:SetFontObject(Maines_Font_Display)
+windowTitle:SetPoint("TOP", header, "TOP", 0, -7)
+windowTitle:SetText("M A I N E S")
+windowTitle:SetTextColor(0.20, 0.11, 0.03)
+windowTitle:SetShadowColor(1, 0.94, 0.78, 0.6)
+windowTitle:SetShadowOffset(0, -1)
+
+local windowSubtitle = header:CreateFontString(nil, "OVERLAY")
 windowSubtitle:SetFontObject(Maines_Font_BodySmall)
-windowSubtitle:SetPoint("CENTER")
-windowSubtitle:SetText("gnomish/goblin-engineered chat tagger")
-windowSubtitle:SetTextColor(0.80, 0.62, 0.30)
-Maines_RegisterFontColor(windowSubtitle)
+windowSubtitle:SetPoint("TOP", windowTitle, "BOTTOM", 0, -2)
+windowSubtitle:SetJustifyH("CENTER")
+windowSubtitle:SetText("gnomish / goblin-engineered chat tagger")
+windowSubtitle:SetTextColor(0.30, 0.18, 0.07)
+windowSubtitle:SetShadowColor(1, 0.94, 0.78, 0.4)
+windowSubtitle:SetShadowOffset(0, -1)
 
-local windowClose = CreateFrame("Button", nil, Maines_Window, "UIPanelCloseButton")
-windowClose:SetPoint("TOPRIGHT", -4, -4)
+-- Fine engraved flourishes either side of the title: a hairline fading outward, ending in a
+-- small diamond next to the lettering. Drawn, not pictures.
+for _, side in ipairs({-1, 1}) do
+    local diamond = header:CreateTexture(nil, "ARTWORK")
+    diamond:SetTexture("Interface\\Buttons\\WHITE8X8")
+    diamond:SetVertexColor(0.24, 0.13, 0.04)
+    diamond:SetSize(5, 5)
+    diamond:SetRotation(math.rad(45))
+    if side < 0 then
+        diamond:SetPoint("RIGHT", windowTitle, "LEFT", -14, -1)
+    else
+        diamond:SetPoint("LEFT", windowTitle, "RIGHT", 14, -1)
+    end
+    local line = header:CreateTexture(nil, "ARTWORK")
+    line:SetTexture("Interface\\Buttons\\WHITE8X8")
+    line:SetHeight(1)
+    line:SetWidth(90)
+    local ink, clear = CreateColor(0.24, 0.13, 0.04, 0.8), CreateColor(0.24, 0.13, 0.04, 0)
+    if side < 0 then
+        line:SetPoint("RIGHT", diamond, "LEFT", -4, 0)
+        line:SetGradient("HORIZONTAL", clear, ink)
+    else
+        line:SetPoint("LEFT", diamond, "RIGHT", 4, 0)
+        line:SetGradient("HORIZONTAL", ink, clear)
+    end
+end
+
+local windowClose = CreateFrame("Button", nil, header, "UIPanelCloseButton")
+windowClose:SetPoint("TOPRIGHT", -6, -6)
 windowClose:SetScript("OnClick", function() Maines_HideMainWindow() end)
 
--- Tabs: one per functional area, each with its own icon so they read as image buttons rather
--- than plain text. Every icon here is one already proven safe elsewhere in this file (the
--- /mainhelp reference uses the same set). Each tab shows/hides its own panel; the active tab
--- is shown disabled (dimmed) purely as a zero-art "you are here" indicator.
+-- Pages: one per functional area, as a row of tabs under the title, each with Maines' own icon.
+-- Each page shows/hides its own panel; the open page's tab is highlighted.
 local TAB_DEFS = {
-    {key = "main", label = "Main", icon = "Interface\\Icons\\INV_Misc_Note_01"},
-    {key = "filter", label = "Filter", icon = "Interface\\Icons\\INV_Letter_15"},
-    {key = "behavior", label = "Behavior", icon = "Interface\\Icons\\INV_Misc_QuestionMark"},
-    {key = "cosmetic", label = "Cosmetic", icon = "Interface\\Icons\\INV_Misc_Dice_01"},
-    {key = "help", label = "Help", icon = "Interface\\Icons\\INV_Misc_Gear_08"},
+    {key = "main", label = "Main", icon = ICONS .. "main.tga"},
+    {key = "phrases", label = "Phrases", icon = ICONS .. "phrases.tga"},
+    {key = "animate", label = "Animate", icon = ICONS .. "animate.tga"},
+    {key = "badges", label = "Badges", icon = ICONS .. "badges.tga"},
+    {key = "filter", label = "Channels", icon = ICONS .. "channels.tga"},
+    {key = "behavior", label = "Behavior", icon = ICONS .. "behavior.tga"},
+    {key = "cosmetic", label = "Cosmetic", icon = ICONS .. "cosmetic.tga"},
+    {key = "help", label = "Help", icon = ICONS .. "help.tga"},
 }
 
-local tabRow = CreateFrame("Frame", nil, Maines_Window)
-tabRow:SetPoint("TOPLEFT", 16, -78)
-tabRow:SetSize(448, 26)
+local TAB_BAR_HEIGHT = 46
+local TAB_HEIGHT = 42
+local TAB_GAP = 2
+local FOOTER_HEIGHT = 40
+local tabBar = CreateFrame("Frame", nil, Maines_Window)
+tabBar:SetPoint("TOPLEFT", 3, -HEADER_HEIGHT - 3)
+tabBar:SetPoint("TOPRIGHT", -3, -HEADER_HEIGHT - 3)
+tabBar:SetHeight(TAB_BAR_HEIGHT)
+local tabBarBg = tabBar:CreateTexture(nil, "BACKGROUND")
+tabBarBg:SetAllPoints()
+tabBarBg:SetTexture("Interface\\Buttons\\WHITE8X8")
+tabBarBg:SetGradient("VERTICAL", CreateColor(PLATE_BG[1] * 0.8, PLATE_BG[2] * 0.8, PLATE_BG[3] * 0.8, 1),
+    CreateColor(PLATE_BG[1] * 1.2, PLATE_BG[2] * 1.2, PLATE_BG[3] * 1.2, 1))
 
 local contentFrame = CreateFrame("Frame", nil, Maines_Window, "BackdropTemplate")
-contentFrame:SetPoint("TOPLEFT", 16, -110)
-contentFrame:SetPoint("BOTTOMRIGHT", -16, 100)
-Maines_MakeFlatBackdrop(contentFrame, CONTENT_BG, BORDER_DARK, 16)
+contentFrame:SetPoint("TOPLEFT", tabBar, "BOTTOMLEFT", 0, 0)
+contentFrame:SetPoint("BOTTOMRIGHT", -3, FOOTER_HEIGHT)
+Maines_MakeFlatBackdrop(contentFrame, CONTENT_BG, BORDER_DARK, 1)
 
 local Maines_Panels, Maines_Tabs = {}, {}
 
@@ -1547,85 +1876,81 @@ local function Maines_ShowPanel(key)
         if k == key then panel:Show() else panel:Hide() end
     end
     for k, btn in pairs(Maines_Tabs) do
-        if k == key then btn:Disable() else btn:Enable() end
+        btn:SetSelected(k == key)
     end
 end
 
--- Every tab is sized to fit its OWN label first, then all five are widened to match the
--- widest one and centered as a block - keeps the row an even grid without guessing a fixed
--- pixel width that might clip a longer label under a different font.
-local TAB_GAP = 4
-local tabButtons = {}
+-- Equal-width tabs filling the row, 8px in from each side, sitting on the strip's bottom edge
+-- so the open one runs straight into the page.
+local TAB_WIDTH = math.floor((660 - 6 - 16 - TAB_GAP * (#TAB_DEFS - 1)) / #TAB_DEFS)
 for i, def in ipairs(TAB_DEFS) do
-    local btn = Maines_MakeIconButton(tabRow, 0, 26, def.label, def.icon)
+    local btn = Maines_MakeNavButton(tabBar, TAB_WIDTH, TAB_HEIGHT, def.label, def.icon)
+    btn:SetPoint("BOTTOMLEFT", 8 + (i - 1) * (TAB_WIDTH + TAB_GAP), 0)
     btn:SetScript("OnClick", function() Maines_ShowPanel(def.key) end)
     Maines_Tabs[def.key] = btn
-    tabButtons[i] = btn
 
     local panel = CreateFrame("Frame", nil, contentFrame)
-    panel:SetPoint("TOPLEFT", 14, -14)
-    panel:SetPoint("BOTTOMRIGHT", -14, 14)
+    panel:SetPoint("TOPLEFT", 16, -16)
+    panel:SetPoint("BOTTOMRIGHT", -16, 16)
     panel:Hide()
     Maines_Panels[def.key] = panel
 end
 
-local tabWidth = 0
-for _, btn in ipairs(tabButtons) do
-    tabWidth = math.max(tabWidth, btn:GetWidth())
-end
-local tabsTotalWidth = tabWidth * #tabButtons + TAB_GAP * (#tabButtons - 1)
-local tabStartX = (tabRow:GetWidth() - tabsTotalWidth) / 2
-for i, btn in ipairs(tabButtons) do
-    btn:SetWidth(tabWidth)
-    btn:ClearAllPoints()
-    btn:SetPoint("LEFT", tabStartX + (i - 1) * (tabWidth + TAB_GAP), 0)
-end
+-- Footer: the maker's credits, with the GLYPH stamp beside the second line - centered,
+-- always visible.
+local footerBar = CreateFrame("Frame", nil, Maines_Window)
+footerBar:SetPoint("BOTTOMLEFT", 3, 3)
+footerBar:SetPoint("BOTTOMRIGHT", -3, 3)
+footerBar:SetHeight(FOOTER_HEIGHT - 3)
+local footerBg = footerBar:CreateTexture(nil, "BACKGROUND")
+footerBg:SetAllPoints()
+footerBg:SetTexture("Interface\\Buttons\\WHITE8X8")
+footerBg:SetGradient("VERTICAL", CreateColor(PLATE_BG[1] * 0.75, PLATE_BG[2] * 0.75, PLATE_BG[3] * 0.75, 1),
+    CreateColor(PLATE_BG[1] * 1.15, PLATE_BG[2] * 1.15, PLATE_BG[3] * 1.15, 1))
+local footerRule = footerBar:CreateTexture(nil, "ARTWORK")
+footerRule:SetTexture("Interface\\Buttons\\WHITE8X8")
+footerRule:SetVertexColor(BORDER_DARK[1], BORDER_DARK[2], BORDER_DARK[3])
+footerRule:SetHeight(1)
+footerRule:SetPoint("TOPLEFT")
+footerRule:SetPoint("TOPRIGHT")
 
--- The small riveted "manufacturer's plate" - always visible regardless of active tab.
--- Three deliberate, explicitly-chosen lines rather than one long sentence left to Blizzard's
--- auto-wrap - the auto-wrapped version broke at an arbitrary point and left one word stranded
--- on its own line.
-local creditsPlate = CreateFrame("Frame", nil, Maines_Window, "BackdropTemplate")
-creditsPlate:SetSize(420, 64)
-creditsPlate:SetPoint("BOTTOM", 0, 28)
-Maines_MakeSlab(creditsPlate, PLATE_BG, BORDER_DARK, 2)
-
-Maines_MakeBadge(creditsPlate, 16, "Interface\\Icons\\INV_Misc_Gear_08"):SetPoint("LEFT", 8, 0)
-Maines_MakeBadge(creditsPlate, 16, "Interface\\Icons\\INV_Misc_Gear_08"):SetPoint("RIGHT", -8, 0)
-
-local creditsLine1 = creditsPlate:CreateFontString(nil, "OVERLAY")
+local creditsLine1 = footerBar:CreateFontString(nil, "OVERLAY")
 creditsLine1:SetFontObject(Maines_Font_BodySmall)
-creditsLine1:SetPoint("TOP", 0, -8)
+creditsLine1:SetPoint("TOP", 0, -7)
 creditsLine1:SetJustifyH("CENTER")
-creditsLine1:SetText("Designed by Dominic Hughes / Tuniveza")
-creditsLine1:SetTextColor(0.90, 0.86, 0.76)
+creditsLine1:SetText("Designed by Dominic Hughes / Tuniveza  -  Silvermoon EU, Universe of Warcraft")
+creditsLine1:SetTextColor(PLATE_TEXT[1], PLATE_TEXT[2], PLATE_TEXT[3])
 
-local creditsLine2 = creditsPlate:CreateFontString(nil, "OVERLAY")
+-- Shifted right by half the stamp's width (+ gap) so stamp and text together stay centered.
+local creditsLine2 = footerBar:CreateFontString(nil, "OVERLAY")
 creditsLine2:SetFontObject(Maines_Font_BodySmall)
-creditsLine2:SetPoint("TOP", creditsLine1, "BOTTOM", 0, -3)
+creditsLine2:SetPoint("TOP", creditsLine1, "BOTTOM", 10, -3)
 creditsLine2:SetJustifyH("CENTER")
-creditsLine2:SetText("Silvermoon EU - Universe of Warcraft")
-creditsLine2:SetTextColor(0.90, 0.86, 0.76)
+creditsLine2:SetText("The GLYPH Stamp  -  Coded and Guided by Generative Assistance")
+creditsLine2:SetTextColor(PLATE_TEXT_SOFT[1], PLATE_TEXT_SOFT[2], PLATE_TEXT_SOFT[3])
 
-local creditsLine3 = creditsPlate:CreateFontString(nil, "OVERLAY")
-creditsLine3:SetFontObject(Maines_Font_BodySmall)
-creditsLine3:SetPoint("TOP", creditsLine2, "BOTTOM", 0, -8)
-creditsLine3:SetJustifyH("CENTER")
-creditsLine3:SetText("Coded and Guided by Generative Assistance")
-creditsLine3:SetTextColor(0.72, 0.68, 0.60)
+-- The stamp's mark (see Maines_MakeGlyphBadge above).
+local footerBadge = Maines_MakeGlyphBadge(footerBar, 12)
+footerBadge:SetPoint("RIGHT", creditsLine2, "LEFT", -8, 0)
 
--- The Mosaic Stamp footer: previously used a "▦" character that several UI fonts simply have
--- no glyph for, so it rendered as nothing, then a placeholder gear icon that didn't actually
--- look like a mosaic at all. Fixed properly this time: a real 4-tile checkerboard badge (see
--- Maines_MakeMosaicBadge above) instead of either.
-local footerBadge = Maines_MakeMosaicBadge(Maines_Window, 14)
-footerBadge:SetPoint("CENTER", Maines_Window, "BOTTOM", 0, 20)
-local footer = Maines_Window:CreateFontString(nil, "OVERLAY")
-footer:SetFontObject(Maines_Font_BodySmall)
-footer:SetPoint("TOP", footerBadge, "BOTTOM", 0, -2)
-footer:SetJustifyH("CENTER")
-footer:SetText("The Mosaic Stamp")
-footer:SetTextColor(INK_SOFT[1], INK_SOFT[2], INK_SOFT[3])
+-- Everything the feature files (phrases.lua, animate.lua, badges.lua) need to build their own
+-- pages in the same style.
+ns.Panels = Maines_Panels
+ns.ShowPanel = Maines_ShowPanel
+ns.MakeButton = Maines_MakeButton
+ns.MakeHeading = Maines_MakeHeading
+ns.MakeFlatBackdrop = Maines_MakeFlatBackdrop
+ns.RegisterTexture = Maines_RegisterTexture
+ns.Fonts = {
+    Title = Maines_Font_Title, Header = Maines_Font_Header, Body = Maines_Font_Body,
+    BodySmall = Maines_Font_BodySmall, Button = Maines_Font_Button,
+}
+ns.Colors = {
+    INK = INK, INK_SOFT = INK_SOFT, ACCENT = ACCENT, CONTENT_BG = CONTENT_BG, PLATE_BG = PLATE_BG,
+    BORDER_DARK = BORDER_DARK, HEX_TEXT = HEX_TEXT, HEX_SOFT = HEX_SOFT, HEX_ACCENT = HEX_ACCENT,
+}
+ns.Bracket_Types = Bracket_Types
+ns.PANEL_WIDTH = 660 - 6 - 32
 
 -- ---- Main panel: name + bracket (mirrors /mains and /main) ----
 local mainPanel = Maines_Panels.main
@@ -1657,6 +1982,7 @@ bracketLabel:SetTextColor(INK[1], INK[2], INK[3])
 my = my - bracketLabel:GetStringHeight() - 8
 
 local Bracket_Order = {"[", "(", "<", "{", ".", ":", "-", "~", "@", "#"}
+ns.Bracket_Order = Bracket_Order
 local BRACKET_AREA_WIDTH = 400
 local Maines_BracketButtons = {}
 local Maines_SelectedBracketKey
@@ -1831,7 +2157,9 @@ for i, chan in ipairs(Channel_Types) do
     local row = math.floor((i - 1) / CHAN_COLS)
     local cb = CreateFrame("CheckButton", nil, filterPanel, "UICheckButtonTemplate")
     cb:SetSize(22, 22)
-    cb:SetPoint("TOPLEFT", 6 + col * CHAN_COL_WIDTH, chanRowTop - row * 24)
+    -- the two columns centered as a block on the page
+    local gridX = math.floor((ns.PANEL_WIDTH - CHAN_COLS * CHAN_COL_WIDTH) / 2) + 30
+    cb:SetPoint("TOPLEFT", gridX + col * CHAN_COL_WIDTH, chanRowTop - row * 24)
     local lbl = filterPanel:CreateFontString(nil, "OVERLAY")
     lbl:SetFontObject(Maines_Font_Body)
     lbl:SetPoint("LEFT", cb, "RIGHT", 2, 0)
@@ -1991,7 +2319,7 @@ helpIntro:SetFontObject(Maines_Font_Body)
 helpIntro:SetPoint("TOP", 0, hy)
 helpIntro:SetWidth(420)
 helpIntro:SetJustifyH("CENTER")
-helpIntro:SetText("|cFF4A4030Every command above now has a tab here. For the full written reference - icons, examples, and notes - open the dedicated help window, or print the same thing to chat.|r")
+helpIntro:SetText("|cFF4A4030Every command has a page in this window. For the full written reference - icons, examples, and notes - open the dedicated help window, or print the same thing to chat.|r")
 hy = hy - helpIntro:GetStringHeight() - 14
 
 local openHelpBtn = Maines_MakeButton(helpTabPanel, 0, 24, "Open Full Command Reference")
@@ -2031,9 +2359,9 @@ function Maines_RefreshWindow()
     end
 
     if name ~= "" and left ~= "" then
-        previewFS:SetText("|cFF3A2A1E" .. left .. name .. right .. "|r |cFF6B5233Hello there, guildies!|r")
+        previewFS:SetText(HEX_ACCENT .. left .. name .. right .. "|r " .. HEX_TEXT .. "Hello there, guildies!|r")
     else
-        previewFS:SetText("|cFF6B5233(not set yet - pick a name and bracket above)|r")
+        previewFS:SetText(HEX_SOFT .. "(not set yet - pick a name and bracket above)|r")
     end
 
     local filter = Maines_GetChatFilter()
@@ -2062,6 +2390,165 @@ function Maines_RefreshWindow()
 
     local mmHidden = Maines_DB and Maines_DB.minimap and Maines_DB.minimap.hide
     minimapCheck:SetChecked(not mmHidden)
+
+    for _, refresh in ipairs(ns.RefreshHooks) do refresh() end
 end
 
-Maines_Window:SetScript("OnShow", Maines_RefreshWindow)
+-- HookScript, not SetScript: SetScript would also wipe the fade-in hooked on above.
+Maines_Window:HookScript("OnShow", Maines_RefreshWindow)
+
+-- ==========================================================================
+-- A note from the author (/mainnote)
+-- ==========================================================================
+-- Shown once, a few seconds after logging in, the first time each new release runs (keyed by
+-- NOTE_VERSION in Maines_DB), and any time after with /mainnote. Each release can update the
+-- message and the "New in ..." list here; bumping NOTE_VERSION shows it to everyone once more.
+local NOTE_VERSION = "GLYPH"
+local NOTE_TITLE = "A Note From Tuniveza"
+local NOTE_MESSAGE = {
+    "Hey Players Who Use My Maines Addon;",
+    "Thank you So much and am Still Updating This Project As You Can See There Will Be "
+        .. "Dramatic Pleasurable Improvements Over-Time For Now Am BackLogged with So Many Other Projects:",
+}
+local NOTE_PROJECTS = {
+    "Nova Hub for My Relative At Novacane Studios",
+    "Generative Video-Game Experiments",
+    "Code Editor Called Symbolizer",
+    "Predetermination of Other Future Projects ; Etc",
+}
+local NOTE_CLOSING = {"That's Why It Has Taken So Long", "Please Bare With Me"}
+local NOTE_SIGNATURE = "- Dominic Hughes / Tuniveza"
+local NOTE_NEW = {
+    "Saved phrases on a shortcut key (Phrases page)",
+    "An animated tag that changes with each message (Animate page)",
+    "Textual Badges: whole text pictures sent to chat (Badges page)",
+    "A new hand-made look, with its own icons - not the final look by a long stretch, but a nice "
+        .. "make-over to keep it fun and interesting till I can sit down and properly update it full on, "
+        .. "like I did in the early versions",
+}
+
+local NOTE_WIDTH = 480
+local NOTE_TEXT_WIDTH = NOTE_WIDTH - 60
+
+local Note_Frame = CreateFrame("Frame", "Maines_NoteFrame", UIParent, "BackdropTemplate")
+Note_Frame:SetWidth(NOTE_WIDTH)
+Note_Frame:SetPoint("CENTER", 0, 40)
+Note_Frame:SetFrameStrata("FULLSCREEN_DIALOG")
+Note_Frame:SetClampedToScreen(true)
+Note_Frame:SetMovable(true)
+Note_Frame:EnableMouse(true)
+Note_Frame:RegisterForDrag("LeftButton")
+Note_Frame:SetScript("OnDragStart", Note_Frame.StartMoving)
+Note_Frame:SetScript("OnDragStop", Note_Frame.StopMovingOrSizing)
+Note_Frame:Hide()
+Maines_MakeFlatBackdrop(Note_Frame, CONTENT_BG, BORDER_DARK, 3)
+Maines_AddOuterGlow(Note_Frame, 22, 0.35)
+-- Escape closes it, like Blizzard's own dialogs.
+if UISpecialFrames then table.insert(UISpecialFrames, "Maines_NoteFrame") end
+
+local noteFade = Note_Frame:CreateAnimationGroup()
+local noteFadeIn = noteFade:CreateAnimation("Alpha")
+noteFadeIn:SetFromAlpha(0)
+noteFadeIn:SetToAlpha(1)
+noteFadeIn:SetDuration(0.25)
+noteFadeIn:SetSmoothing("OUT")
+Note_Frame:SetScript("OnShow", function() noteFade:Play() end)
+
+local noteBand = CreateFrame("Frame", nil, Note_Frame)
+noteBand:SetPoint("TOPLEFT", 3, -3)
+noteBand:SetPoint("TOPRIGHT", -3, -3)
+noteBand:SetHeight(48)
+Maines_DressBrassBand(noteBand)
+
+local noteTitle = noteBand:CreateFontString(nil, "OVERLAY")
+noteTitle:SetFontObject(Maines_Font_Heading)
+noteTitle:SetPoint("CENTER", 0, 0)
+noteTitle:SetText(NOTE_TITLE)
+noteTitle:SetTextColor(0.20, 0.11, 0.03)
+noteTitle:SetShadowColor(1, 0.94, 0.78, 0.6)
+noteTitle:SetShadowOffset(0, -1)
+
+local noteClose = CreateFrame("Button", nil, noteBand, "UIPanelCloseButton")
+noteClose:SetPoint("TOPRIGHT", -4, -4)
+
+-- The body: one centered column of text blocks, stacked top to bottom.
+local noteY = -48 - 20
+local function NoteText(text, font, color, gapAfter)
+    local fs = Note_Frame:CreateFontString(nil, "OVERLAY")
+    fs:SetFontObject(font)
+    fs:SetWidth(NOTE_TEXT_WIDTH)
+    fs:SetJustifyH("CENTER")
+    fs:SetPoint("TOP", 0, noteY)
+    fs:SetText(text)
+    fs:SetTextColor(color[1], color[2], color[3])
+    noteY = noteY - fs:GetStringHeight() - (gapAfter or 6)
+    return fs
+end
+
+-- A short fading rule with a diamond in the middle, between sections.
+local function NoteDivider()
+    noteY = noteY - 4
+    local diamond = Note_Frame:CreateTexture(nil, "ARTWORK")
+    diamond:SetTexture("Interface\\Buttons\\WHITE8X8")
+    diamond:SetVertexColor(INK_SOFT[1], INK_SOFT[2], INK_SOFT[3])
+    diamond:SetSize(5, 5)
+    diamond:SetRotation(math.rad(45))
+    diamond:SetPoint("TOP", 0, noteY)
+    for _, side in ipairs({-1, 1}) do
+        local line = Note_Frame:CreateTexture(nil, "ARTWORK")
+        line:SetTexture("Interface\\Buttons\\WHITE8X8")
+        line:SetSize(110, 1)
+        local ink, clear = CreateColor(INK_SOFT[1], INK_SOFT[2], INK_SOFT[3], 0.8), CreateColor(INK_SOFT[1], INK_SOFT[2], INK_SOFT[3], 0)
+        if side < 0 then
+            line:SetPoint("RIGHT", diamond, "LEFT", -6, 0)
+            line:SetGradient("HORIZONTAL", clear, ink)
+        else
+            line:SetPoint("LEFT", diamond, "RIGHT", 6, 0)
+            line:SetGradient("HORIZONTAL", ink, clear)
+        end
+    end
+    noteY = noteY - 18
+end
+
+NoteText(NOTE_MESSAGE[1], Maines_Font_Header, INK, 8)
+NoteText(NOTE_MESSAGE[2], Maines_Font_Body, INK, 12)
+for i, project in ipairs(NOTE_PROJECTS) do
+    NoteText(HEX_ACCENT .. "-|r  " .. project .. "  " .. HEX_ACCENT .. "-|r", Maines_Font_Body, INK, i == #NOTE_PROJECTS and 12 or 4)
+end
+NoteText(NOTE_CLOSING[1], Maines_Font_Body, INK, 4)
+NoteText(NOTE_CLOSING[2], Maines_Font_Header, INK, 8)
+NoteText(NOTE_SIGNATURE, Maines_Font_BodySmall, INK_SOFT, 10)
+NoteDivider()
+NoteText("New in " .. NOTE_VERSION, Maines_Font_Heading, INK, 8)
+for i, line in ipairs(NOTE_NEW) do
+    NoteText(line, Maines_Font_Body, INK_SOFT, i == #NOTE_NEW and 12 or 3)
+end
+NoteDivider()
+NoteText("Type " .. HEX_ACCENT .. "/mainnote|r any time to read this again - news and changes "
+    .. "for each update will be here.", Maines_Font_BodySmall, INK_SOFT, 14)
+
+local noteOk = Maines_MakeButton(Note_Frame, 160, 26, "Thank you!")
+noteOk:SetPoint("TOP", 0, noteY)
+noteOk:SetScript("OnClick", function() Note_Frame:Hide() end)
+noteY = noteY - 26 - 20
+Note_Frame:SetHeight(-noteY)
+
+function Maines_ShowNote()
+    Maines_DB = Maines_DB or {}
+    Maines_DB.noteSeen = NOTE_VERSION
+    Note_Frame:Show()
+end
+
+SLASH_MAINNOTE1 = "/mainnote"
+SlashCmdList["MAINNOTE"] = function() Maines_ShowNote() end
+
+-- First run of this release: show it once, a few seconds after the loading screen, so it
+-- doesn't land on top of everything else that pops up at login.
+local noteWatcher = CreateFrame("Frame")
+noteWatcher:RegisterEvent("PLAYER_LOGIN")
+noteWatcher:SetScript("OnEvent", function()
+    if Maines_DB and Maines_DB.noteSeen == NOTE_VERSION then return end
+    C_Timer.After(4, function()
+        if not (Maines_DB and Maines_DB.noteSeen == NOTE_VERSION) then Maines_ShowNote() end
+    end)
+end)

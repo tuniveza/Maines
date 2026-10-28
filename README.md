@@ -2,7 +2,7 @@
 <p align="center"><em>Take your main name to the chat frame, then gtfo.</em></p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/stamp-MOSAIC-8B5E3C" alt="Current stamp: MOSAIC">
+  <img src="https://img.shields.io/badge/stamp-GLYPH-8B5E3C" alt="Current stamp: GLYPH">
   <img src="https://img.shields.io/badge/interface-12.1.0%20(Midnight)-3E6E96" alt="WoW Interface 12.1.0 (Midnight)">
   <img src="https://img.shields.io/badge/built%20on-Ace3-C9A227" alt="Built on Ace3">
 </p>
@@ -39,7 +39,7 @@ folder already named `Maines`; just drag that straight into your `Interface/AddO
 
 ### Releasing (maintainers)
 
-Pushing a tag (the stamp name, e.g. `git tag MOSAIC && git push origin MOSAIC`) runs
+Pushing a tag (the stamp name, e.g. `git tag GLYPH && git push origin GLYPH`) runs
 [BigWigsMods/packager](https://github.com/BigWigsMods/packager) via `.github/workflows/release.yml`.
 It builds the zip using `.pkgmeta` (which strips dev-only files and the Ace3 pieces Maines
 doesn't load), stamps the tag into the TOC's `## Version`, generates a changelog from commits,
@@ -195,7 +195,7 @@ to reset that, so it plays again next time you `/maines`.
 
 ### Version stamp — `/mainstamp`
 
-Prints the current build stamp ("The Mosaic Stamp [ ▦ ]"). Maines uses stamps instead of
+Prints the current build stamp ("The GLYPH Stamp"). Maines uses stamps instead of
 alpha/beta/release version numbers.
 
 ### In-game command reference — `/mainhelp`
