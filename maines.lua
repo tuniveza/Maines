@@ -365,13 +365,16 @@ ns.RefreshHooks = {}
 -- down, which sets ns.OnStatus). ns.Status shows a line in the window without printing it, for
 -- replies that print as several chat lines (/mains). Only Maines' own messages pass through
 -- here - other add-ons' prints are never captured.
-function ns.Status(text)
-    ns.lastStatus = text
-    if ns.OnStatus then ns.OnStatus(text) end
+-- `status` (optional) is what the window shows instead of the chat text: a table
+-- {kind = "ok" | "warn" | "error" | nil, parts = {{label = , value = , symbol = }, ...}} that the
+-- status line lays out with even separators, or a kind string for the chat text itself.
+function ns.Status(text, kind)
+    ns.lastStatus, ns.lastStatusKind = text, kind
+    if ns.OnStatus then ns.OnStatus(text, kind) end
 end
-function ns.Say(text)
+function ns.Say(text, status)
     print(text)
-    ns.Status(text)
+    if type(status) == "table" then ns.Status(status) else ns.Status(text, status) end
 end
 
 -- Session-to-session variety for /maincolor. GetTime() (unlike the apparently-absent time())
@@ -476,7 +479,7 @@ end
 -- Falls back to Blizzard's own FRIZQT__ if a font file is ever missing for some reason (a
 -- corrupt install, a manual file deletion) so the UI degrades instead of erroring.
 local Maines_Font_Display, Maines_Font_Heading, Maines_Font_Header, Maines_Font_Body
-local Maines_Font_BodySmall, Maines_Font_Button, Maines_Font_Tab
+local Maines_Font_BodySmall, Maines_Font_Button, Maines_Font_Tab, Maines_Font_Status
 -- (do ... end: the main chunk is close to Lua's 200-locals limit.)
 do
     local FONT_DIR = "Interface\\AddOns\\Maines\\fonts\\"
@@ -501,6 +504,8 @@ do
     Maines_Font_BodySmall = make("Maines_Font_BodySmall", FONT_LABEL, 12)
     Maines_Font_Button = make("Maines_Font_Button", FONT_BUTTON, 14)
     Maines_Font_Tab = make("Maines_Font_Tab", FONT_BUTTON, 13)
+    -- the status line's readout face: the chunky slab, a little larger than body text
+    Maines_Font_Status = make("Maines_Font_Status", FONT_BUTTON, 15)
 end
 
 -- The spacing scale every page lays out with (UI units): xs 4, s 8, m 12, l 16, xl 24.
@@ -706,7 +711,8 @@ local function Maines_ApplyPaletteColor(r, g, b, hex, label, quiet)
         end
     end
     if hex and label and not quiet then
-        ns.Say(("|cFF00FF00Maines|r: painted #%s from \"%s\""):format(hex, label))
+        ns.Say(("|cFF00FF00Maines|r: painted #%s from \"%s\""):format(hex, label),
+            {kind = "ok", parts = {{label = "Palette", value = label}, {symbol = "#" .. hex}}})
     end
 end
 
@@ -1470,8 +1476,15 @@ function ns.PrintMainSettings(name, typ, left, right)
         print("|cFFB8AEA0", "Left Bracket", "|r", left, "|r")
         print("|cFFA9A193", "Right Bracket", "|r", right, "|r")
     end
-    ns.Status("|cFFD2C7B7Main Name|r |cFFFFE4B5" .. name .. "|r   |cFFC1B7A8Bracket Type|r " .. (typ or "")
-        .. "   |cFFB8AEA0Left|r " .. (left or "") .. "   |cFFA9A193Right|r " .. (right or ""))
+    -- e.g.  Main Tuniveza  •  Bracket Crocodile  •  <Tuniveza>
+    local parts = {{label = "Main", value = (name ~= "" and name) or "not set"}}
+    if typ and typ ~= "" then
+        parts[2] = {label = "Bracket", value = (typ:gsub("%s*[Bb]racket%s*$", ""))}
+    end
+    if name ~= "" and left and left ~= "" then
+        parts[#parts + 1] = {tag = {left, name, right or ""}}
+    end
+    ns.Status({parts = parts})
 end
 SlashCmdList["MAINS"] = function(msg)
     local args = {}
@@ -2491,10 +2504,10 @@ end
 -- Status line: a slim walnut strip just above the footer that shows the latest message Maines
 -- printed to chat (everything sent through ns.Say / ns.Status), so a click on a bracket,
 -- channel, style, badge or palette answers right where the click was. Chat still gets every
--- message too. The green "Maines:" chat prefix is dropped here (this is Maines' own window) and
--- the first letter capitalised; every other colour code is kept, since the chat colours were
--- picked for a dark background like this one. A new message fades in and stays until the next;
--- hovering a line too long to fit shows all of it.
+-- message too. It reads like an engraved readout plate: the slab face with a dark shadow, labels
+-- muted, values gold, symbols verdigris, even separators; plain messages are tidied (prefix
+-- dropped, spaces collapsed) and tinted by kind. A new message fades in and stays until the
+-- next; hovering a line too long to fit shows all of it.
 do
     local bar = CreateFrame("Frame", nil, Maines_Window)
     bar:SetPoint("BOTTOMLEFT", footerBar, "TOPLEFT", 0, 0)
@@ -2505,13 +2518,17 @@ do
     bg:SetTexture("Interface\\Buttons\\WHITE8X8")
     Maines_Look.DressBar(bar, bg, 0.85, 1.0)
 
+    -- The readout: the chunky slab face with a dark engraved shadow under every stroke.
     local text = bar:CreateFontString(nil, "OVERLAY")
-    text:SetFontObject(Maines_Font_Body)
+    text:SetFontObject(Maines_Font_Status)
     text:SetPoint("LEFT", SP.xl, 0)
     text:SetPoint("RIGHT", -SP.xl, 0)
     text:SetJustifyH("CENTER")
+    text:SetJustifyV("MIDDLE")
     text:SetWordWrap(false)
     text:SetMaxLines(1)
+    text:SetShadowColor(0, 0, 0, 0.85)
+    text:SetShadowOffset(1, -1)
 
     local fade = text:CreateAnimationGroup()
     local fadeIn = fade:CreateAnimation("Alpha")
@@ -2520,21 +2537,84 @@ do
     fadeIn:SetDuration(0.3)
     fadeIn:SetSmoothing("OUT")
 
-    local function clean(msg)
-        msg = tostring(msg or ""):gsub("^|c%x%x%x%x%x%x%x%xMaines|r:%s*", "")
-        return (msg:gsub("^(%l)", string.upper))
+    -- Colours, all light enough to keep 4.5:1 or better on the strip in every palette (tests/run.lua
+    -- checks them on the strip's tones and on deeper and mid shades of every palette's band):
+    -- labels a soft muted cream, values warm gold, symbols (bracket characters, a palette's hex)
+    -- pale verdigris; plain messages cream, or tinted green / amber / coral when they're a
+    -- success / a warning / an error. The separator is a muted brass bullet.
+    local COLOR = {
+        label = "D9CBAE", value = "FFD27A", symbol = "96E6D6", sep = "C2AC84",
+        plain = "EFE6D2", ok = "AEEBA0", warn = "FFB866", error = "FFB4A6",
+    }
+    ns.StatusColors = COLOR
+    local function c(key) return "|cFF" .. COLOR[key] end
+    local SEP = "  " .. c("sep") .. "\226\128\162|r  "    -- "  •  ": the same padding everywhere
+    local function esc(v) return (tostring(v):gsub("|", "||")) end
+
+    -- Structured messages: label value [symbol] pieces, single spaces inside, SEP between.
+    local function build(status)
+        local pieces = {}
+        for _, part in ipairs(status.parts or {}) do
+            local bits = {}
+            if part.label then bits[#bits + 1] = c("label") .. esc(part.label) .. "|r" end
+            if part.value then bits[#bits + 1] = c("value") .. esc(part.value) .. "|r" end
+            if part.symbol then bits[#bits + 1] = c("symbol") .. esc(part.symbol) .. "|r" end
+            if part.tag then
+                local l, n, r = part.tag[1], part.tag[2], part.tag[3]
+                bits[#bits + 1] = c("symbol") .. esc(l) .. "|r" .. c("value") .. esc(n) .. "|r" .. c("symbol") .. esc(r) .. "|r"
+            end
+            if #bits > 0 then pieces[#pieces + 1] = table.concat(bits, " ") end
+        end
+        return table.concat(pieces, SEP), status.kind and COLOR[status.kind] and status.kind or "plain"
     end
-    ns.OnStatus = function(msg)
-        text:SetText(clean(msg))
-        text:SetTextColor(PLATE_TEXT[1], PLATE_TEXT[2], PLATE_TEXT[3])
+
+    -- What kind a plain message is, when its caller didn't say: by its wording.
+    local KINDS = {
+        {"error", {"can't", "cannot", "refused", "unknown", "invalid", "no such", "isn't available",
+            "doesn't let", "too long", "at most", "no badge called", "there's no"}},
+        {"warn", {"first", "usage", "nothing", "already have", "is empty", "give ", "pick ", "ignored",
+            "reset on load", "ready in", "every 3 minutes", "no saved", "no filter", "no valid", "not set"}},
+        {"ok", {"saved", "added", "removed", "updated", "deleted", "is now", "set to", "cleared", "painted",
+            "shown", "hidden", "sticky", "playing", "tagging", "tag animation", "steps ", "printed", "listed"}},
+    }
+    local function classify(plain)
+        local low = plain:lower()
+        for _, entry in ipairs(KINDS) do
+            for _, word in ipairs(entry[2]) do
+                if low:find(word, 1, true) then return entry[1] end
+            end
+        end
+        return "plain"
+    end
+
+    -- Chat text: the green "Maines:" prefix dropped, whitespace trimmed and collapsed (chat lines use
+    -- runs of spaces as separators), first letter capitalised; its own highlights become gold
+    -- (cream on an amber/coral line), everything else takes the message's kind colour.
+    local function tidy(msg, kind)
+        msg = tostring(msg or ""):gsub("^|c%x%x%x%x%x%x%x%xMaines|r:%s*", "")
+        msg = msg:gsub("%s+", " "):gsub("^ ", ""):gsub(" $", "")
+        msg = msg:gsub("^(%l)", string.upper)
+        local plain = msg:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+        kind = (kind and COLOR[kind]) and kind or classify(plain)
+        local hi = (kind == "warn" or kind == "error") and c("plain") or c("value")
+        return (msg:gsub("|c%x%x%x%x%x%x%x%x", hi)), kind
+    end
+
+    local function show(str, colorKey)
+        local r, g, b = Maines_HexToRGB(COLOR[colorKey])
+        text:SetText(str)
+        text:SetTextColor(r, g, b)
+        text.kind = colorKey
+    end
+    ns.OnStatus = function(msg, kind)
+        if type(msg) == "table" then show(build(msg)) else show(tidy(msg, kind)) end
         fade:Stop()
         fade:Play()
     end
     if ns.lastStatus then
-        ns.OnStatus(ns.lastStatus)
+        ns.OnStatus(ns.lastStatus, ns.lastStatusKind)
     else
-        text:SetText("Messages from Maines show up here, and in chat.")
-        text:SetTextColor(PLATE_TEXT_SOFT[1], PLATE_TEXT_SOFT[2], PLATE_TEXT_SOFT[3])
+        show("Messages from Maines show up here, and in chat.", "label")
     end
 
     bar:EnableMouse(true)

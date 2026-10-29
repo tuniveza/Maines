@@ -841,16 +841,25 @@ test("18. status line: what Maines prints to chat also shows in the window; othe
     ok(text and text.GetText, "the window has a status line (ns.StatusText)")
     ok(mock.isDescendant(text, Maines_Frame), "the status line is part of the Maines window")
     slash("/maines")
-    local function status() return text:GetText() or "" end
+    -- the words as shown (colour codes stripped), and the colour codes used
+    local function status() return ((text:GetText() or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) end
+    local function raw() return text:GetText() or "" end
+    local C = ns.StatusColors
     local function printedHas(s)
         for _, l in ipairs(mock.printed) do if l:find(s, 1, true) then return true end end
     end
 
     -- /mains: four chat lines as always, and the same facts on one line in the window
     slash("/mains Statusname (")
-    ok(status():find("Statusname", 1, true), "/mains name in the status line, got " .. q(status()))
-    ok(status():find("Main Name", 1, true) and status():find("Bracket Type", 1, true), "/mains labels in the status line")
-    ok(printedHas("Statusname"), "/mains still prints to chat")
+    eq(status(), "Main Statusname  \226\128\162  Bracket Circle  \226\128\162  (Statusname)", "/mains summary, evenly spaced")
+    ok(raw():find("|cFF" .. C.label .. "Main|r", 1, true), "labels in the muted label colour")
+    ok(raw():find("|cFF" .. C.value .. "Statusname|r", 1, true), "values in gold")
+    ok(raw():find("|cFF" .. C.symbol .. "(|r", 1, true), "bracket symbols in their own accent")
+    ok(printedHas("Statusname") and printedHas("Bracket Type"), "/mains still prints its chat lines")
+    -- spacing: single spaces inside a pair, the same "  ·  " between pairs, nothing doubled elsewhere
+    local _, seps = status():gsub("  \226\128\162  ", "")
+    eq(seps, 2, "two separators")
+    ok(not status():gsub("  \226\128\162  ", "|"):find("  ", 1, true), "no other double spaces")
 
     -- a bracket button in the window says the same
     local braceBtn
@@ -865,7 +874,14 @@ test("18. status line: what Maines prints to chat also shows in the window; othe
     local chatLine = mock.printed[#mock.printed]
     ok(#mock.printed > before and chatLine:find("added SAY to filter", 1, true), "/mainchat +SAY printed to chat")
     eq(status(), "Added SAY to filter", "filter change in the status line")
-    ok(not status():find("Maines|r:", 1, true), "no chat prefix in the window")
+    ok(not raw():find("Maines|r:", 1, true), "no chat prefix in the window")
+    eq(text.kind, "ok", "a success is tinted green")
+    -- chat text with runs of spaces is collapsed to single spaces; errors are tinted
+    ns.Say("|cFF00FF00Maines|r: can't   send  to |cFFFFE4B5Guild|r:   not  in a guild  ")
+    eq(status(), "Can't send to Guild: not in a guild", "whitespace collapsed and trimmed")
+    eq(text.kind, "error", "an error is tinted")
+    slash("/mainphrase add")
+    eq(text.kind, "warn", "\"nothing to add - type the phrase first\" is a warning")
 
     -- the feature files route through the same helper
     slash("/mainanim twinkle")
@@ -877,7 +893,44 @@ test("18. status line: what Maines prints to chat also shows in the window; othe
     local pal = ns.Palettes[1]
     local hex = pal.colors[1]
     ns.ApplyPaletteColor(tonumber(hex:sub(1, 2), 16) / 255, tonumber(hex:sub(3, 4), 16) / 255, tonumber(hex:sub(5, 6), 16) / 255, hex, pal.name)
-    ok(status():find(pal.name, 1, true), "palette change in the status line, got " .. q(status()))
+    eq(status(), "Palette " .. pal.name .. "  \226\128\162  #" .. hex, "palette change in the status line")
+
+    -- every colour stays readable (4.5:1, the separator 3:1) on the strip in every palette, and
+    -- on deep to mid shades (35-55%) of each palette's title band (what the strip may be toned to)
+    local function lin(x) return x <= 0.03928 and x / 12.92 or ((x + 0.055) / 1.055) ^ 2.4 end
+    local function wlum(c) return 0.2126 * lin(c[1]) + 0.7152 * lin(c[2]) + 0.0722 * lin(c[3]) end
+    local function contrast(a, b)
+        local la, lb = wlum(a), wlum(b)
+        return (math.max(la, lb) + 0.05) / (math.min(la, lb) + 0.05)
+    end
+    local function rgb(hex6) return {tonumber(hex6:sub(1, 2), 16) / 255, tonumber(hex6:sub(3, 4), 16) / 255, tonumber(hex6:sub(5, 6), 16) / 255} end
+    local band
+    for _, o in ipairs(mock.objects) do if type(o.toneLow) == "table" and mock.isDescendant(o, Maines_Frame) then band = o end end
+    ok(band, "found the window's title band")
+    local worst, worstSep, checked = math.huge, math.huge, 0
+    for _, palette in ipairs(ns.Palettes) do
+        for _, phex in ipairs(palette.colors) do
+            local c3 = rgb(phex)
+            ns.ApplyPaletteColor(c3[1], c3[2], c3[3], phex, palette.name, true)
+            local grounds = {}
+            for _, t in ipairs(ns.StatusBar.tone or {}) do grounds[#grounds + 1] = t end
+            for _, f in ipairs({0.35, 0.45, 0.55}) do
+                grounds[#grounds + 1] = {band.toneLow[1] * f, band.toneLow[2] * f, band.toneLow[3] * f}
+                grounds[#grounds + 1] = {band.toneHigh[1] * f * 0.8, band.toneHigh[2] * f * 0.8, band.toneHigh[3] * f * 0.8}
+            end
+            for _, g in ipairs(grounds) do
+                for key, hex6 in pairs(C) do
+                    local r = contrast(rgb(hex6), g)
+                    if key == "sep" then worstSep = math.min(worstSep, r) else worst = math.min(worst, r) end
+                    checked = checked + 1
+                end
+            end
+        end
+    end
+    ok(worst >= 4.5, ("status text contrast on every strip tone (worst %.2f)"):format(worst))
+    ok(worstSep >= 3, ("separator contrast (worst %.2f)"):format(worstSep))
+    note(("(%d colour/ground pairs checked; worst text contrast %.2f, separator %.2f)"):format(checked, worst, worstSep))
+    ns.ApplyPaletteColor(0.70, 0.47, 0.18)
 
     -- someone else's print never lands in the Maines window
     local kept = status()
