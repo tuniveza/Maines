@@ -653,7 +653,7 @@ local function Maines_ApplyPaletteColor(r, g, b, hex, label, quiet)
     Maines_DB.palette = palette and {name = palette.name, hex = hex, r = r, g = g, b = b} or nil
     for _, entry in ipairs(Maines_Textures) do
         if entry.frameBorder then
-            entry.frameBorder(surfaceKey)
+            entry.frameBorder(surfaceKey, r, g, b)
         elseif entry.surface then
             local tex = entry.surface
             tex:SetTexture(Maines_SurfacePath(surfaceKey, entry.role), "REPEAT", "REPEAT")
@@ -752,16 +752,19 @@ local function Maines_MakeFlatBackdrop(frame, bg, border, edgeSize)
     return frame
 end
 
--- A window's frame: a carved / forged border drawn just outside the window, one style per
--- palette (textures/frames/<key>/ from tools/make_textures.py; "brass" is the start look's
--- riveted brass). Built the way Blizzard's dialog borders are - four corner pieces and four
--- edge strips - but from the add-on's own textures: FRAME_SIZE units thick, FRAME_OUT of it
--- outside the window, so the rest only covers the window's own thin edge, never its content.
--- The strips repeat every FRAME_TILE units through texture coordinates past 1 (wrap mode
--- REPEAT), rounded to a whole number of repeats so the pattern meets each corner cleanly.
+-- A window's frame: a moulded metal border drawn just outside the window, one motif per palette
+-- (textures/frames/<key>/ from tools/make_textures.py; "brass" is the start look). The textures
+-- are greyscale relief, all cut from the same moulding and lit like the title band; the frame
+-- takes its color from the same palette tone as the band, so window and frame read as one
+-- object. Built the way Blizzard's dialog borders are - four corner pieces and four edge strips
+-- - but from the add-on's own textures: FRAME_SIZE units thick, FRAME_OUT of it outside the
+-- window, so the rest only covers the window's own thin edge, never its content. The strips
+-- repeat every FRAME_TILE units through texture coordinates past 1 (wrap mode REPEAT), rounded
+-- to a whole number of repeats so the pattern meets each corner cleanly.
 do
     local FRAMES = TEXTURES .. "frames\\"
     local FRAME_SIZE, FRAME_OUT, FRAME_TILE = 16, 13, 64
+    local FRAME_TINT, FRAME_BLEND = {0.76, 0.57, 0.31}, 0.7
     local FRAME_PIECES = {"tl", "tr", "bl", "br", "top", "bottom", "left", "right"}
     local function Maines_FramePath(key, piece)
         return FRAMES .. (key or "brass") .. "\\" .. piece .. ".tga"
@@ -797,12 +800,16 @@ do
             end
         end
         p.fit = fit
-        -- nil = the start look's brass frame
-        local function dress(key)
+        -- key nil = the start look's brass frame; (r, g, b) = the palette color, toned exactly like
+        -- the title band (FRAME_BLEND = the band's blend), so frame and band are one material
+        local function dress(key, r, g, b)
+            local tr, tg, tb = FRAME_TINT[1], FRAME_TINT[2], FRAME_TINT[3]
+            if r then tr, tg, tb = Maines_ToneLike(FRAME_TINT, r, g, b, FRAME_BLEND) end
             for _, name in ipairs(FRAME_PIECES) do
                 p[name]:SetTexture(Maines_FramePath(key, name), "REPEAT", "REPEAT")
+                p[name]:SetVertexColor(tr, tg, tb)
             end
-            p.key = key or "brass"
+            p.key, p.tint = key or "brass", {tr, tg, tb}
             fit()
         end
         dress(nil)
@@ -855,6 +862,57 @@ do
             frame:SetBackdropBorderColor(edge[1], edge[2], edge[3], 1)
         end)
     end
+    -- A soft light sheen over a whole window, frame included: a faint white falling from the top
+    -- (a touch stronger toward the top left, where the light comes from), a faint darkening
+    -- toward the bottom, and a soft shadow the frame casts just inside its inner edge. One
+    -- child frame on top of everything else, mouse-transparent. Kept this faint so it never
+    -- dims the text noticeably (tests/run.lua checks the contrast it leaves).
+    Maines_Look.SHEEN = {top = 0.05, corner = 0.035, bottom = 0.05, shadow = 0.22, shadowWidth = 6}
+    function Maines_Look.AddSheen(frame)
+        local S = Maines_Look.SHEEN
+        local sheen = CreateFrame("Frame", nil, frame)
+        sheen:SetPoint("TOPLEFT", -FRAME_OUT, FRAME_OUT)
+        sheen:SetPoint("BOTTOMRIGHT", FRAME_OUT, -FRAME_OUT)
+        sheen:SetFrameLevel(frame:GetFrameLevel() + 60)
+        sheen:EnableMouse(false)
+        if sheen.SetMouseClickEnabled then sheen:SetMouseClickEnabled(false) end
+        local function layer(a1, rel1, a2, rel2, orient, c1, c2)
+            local tex = sheen:CreateTexture(nil, "OVERLAY")
+            tex:SetTexture("Interface\\Buttons\\WHITE8X8")
+            tex:SetPoint(a1, sheen, rel1)
+            tex:SetPoint(a2, sheen, rel2)
+            tex:SetGradient(orient, c1, c2)
+            return tex
+        end
+        local white, black = function(a) return CreateColor(1, 0.97, 0.90, a) end, function(a) return CreateColor(0, 0, 0, a) end
+        -- VERTICAL gradients run from the bottom color to the top color
+        layer("TOPLEFT", "TOPLEFT", "BOTTOMRIGHT", "RIGHT", "VERTICAL", white(0), white(S.top))
+        layer("TOPLEFT", "TOPLEFT", "BOTTOMRIGHT", "CENTER", "HORIZONTAL", white(S.corner), white(0))
+        layer("TOPLEFT", "LEFT", "BOTTOMRIGHT", "BOTTOMRIGHT", "VERTICAL", black(S.bottom), black(0))
+        -- the inner shadow, just inside the frame's inner edge (the window's own edge + 3)
+        local inset, w = FRAME_OUT + 3, S.shadowWidth
+        local function shadow(side)
+            local tex = sheen:CreateTexture(nil, "OVERLAY")
+            tex:SetTexture("Interface\\Buttons\\WHITE8X8")
+            if side == "top" then
+                tex:SetPoint("TOPLEFT", inset, -inset); tex:SetPoint("TOPRIGHT", -inset, -inset); tex:SetHeight(w)
+                tex:SetGradient("VERTICAL", black(0), black(S.shadow))
+            elseif side == "bottom" then
+                tex:SetPoint("BOTTOMLEFT", inset, inset); tex:SetPoint("BOTTOMRIGHT", -inset, inset); tex:SetHeight(w)
+                tex:SetGradient("VERTICAL", black(S.shadow), black(0))
+            elseif side == "left" then
+                tex:SetPoint("TOPLEFT", inset, -inset); tex:SetPoint("BOTTOMLEFT", inset, inset); tex:SetWidth(w)
+                tex:SetGradient("HORIZONTAL", black(S.shadow), black(0))
+            else
+                tex:SetPoint("TOPRIGHT", -inset, -inset); tex:SetPoint("BOTTOMRIGHT", -inset, inset); tex:SetWidth(w)
+                tex:SetGradient("HORIZONTAL", black(0), black(S.shadow))
+            end
+        end
+        for _, side in ipairs({"top", "bottom", "left", "right"}) do shadow(side) end
+        frame.maines_sheen = sheen
+        return sheen
+    end
+
     Maines_Look.FRAME_OUT = FRAME_OUT
 end
 
@@ -1704,6 +1762,7 @@ end)
 Help_Frame:Hide()
 Maines_MakeFlatBackdrop(Help_Frame, WINDOW_BG, BORDER_DARK, 3)
 Maines_Look.AddFrameBorder(Help_Frame)
+Maines_Look.AddSheen(Help_Frame)
 
 Help_Frame.title = Help_Frame:CreateFontString(nil, "OVERLAY")
 Help_Frame.title:SetFontObject(Maines_Font_Display)
@@ -1965,6 +2024,7 @@ local function Maines_AddOuterGlow(frame, size, alpha, out)
     table.insert(Maines_Textures, {repaint = paint})
 end
 Maines_Look.AddFrameBorder(Maines_Window)
+Maines_Look.AddSheen(Maines_Window)
 Maines_AddOuterGlow(Maines_Window, 22, 0.35, Maines_Look.FRAME_OUT - 5)
 
 -- Dresses a band (the window header, the note's title strip) as brushed brass: a warm gradient,
@@ -2227,6 +2287,7 @@ ns.Palettes = Color_Palettes
 ns.ApplyPaletteColor = Maines_ApplyPaletteColor
 ns.ActivePalette = function() return Maines_ActivePalette end
 ns.TonePlateBackdrop = Maines_Look.TonePlateBackdrop
+ns.Sheen = Maines_Look.SHEEN
 ns.TabBar, ns.FooterBar = tabBar, footerBar
 ns.Fonts = {
     Title = Maines_Font_Title, Header = Maines_Font_Header, Body = Maines_Font_Body,
@@ -2733,6 +2794,7 @@ Note_Frame:SetScript("OnDragStop", Note_Frame.StopMovingOrSizing)
 Note_Frame:Hide()
 Maines_MakeFlatBackdrop(Note_Frame, CONTENT_BG, BORDER_DARK, 3)
 Maines_Look.AddFrameBorder(Note_Frame)
+Maines_Look.AddSheen(Note_Frame)
 Maines_AddOuterGlow(Note_Frame, 22, 0.35, Maines_Look.FRAME_OUT - 5)
 -- Escape closes it, like Blizzard's own dialogs.
 if UISpecialFrames then table.insert(UISpecialFrames, "Maines_NoteFrame") end

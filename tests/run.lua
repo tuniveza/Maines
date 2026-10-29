@@ -657,7 +657,7 @@ test("16. a palette tones the title bands, tab strip, footer and plates, and swa
         -- the window frames: every piece swapped to the palette's frame, strips repeating whole
         for _, w in ipairs(windows) do
             for piece, tex in pairs(w.maines_frame) do
-                if type(tex) == "table" then
+                if type(tex) == "table" and tex.SetTexture then
                     local path = base .. "frames\\" .. palette.surface .. "\\" .. piece .. ".tga"
                     eq(tex._texture, path, palette.name .. " frame " .. piece)
                     local f = io.open(repoRoot .. "/" .. path:gsub("^Interface\\AddOns\\Maines\\", ""):gsub("\\", "/"), "rb")
@@ -686,6 +686,11 @@ test("16. a palette tones the title bands, tab strip, footer and plates, and swa
     end
     -- every swatch of every palette (not just the first): plate text and the title stay readable
     local swatches, ink, worstTitle = 0, {0.20, 0.11, 0.03}, math.huge
+    -- ...also under the window sheen: a faint white at the top, a faint black at the bottom
+    local S = ns.Sheen
+    local function over(c, k, a) return {c[1] + (k - c[1]) * a, c[2] + (k - c[2]) * a, c[3] + (k - c[3]) * a} end
+    local topA = S.top + S.corner
+    local worstTitleSheen, worstFooterSheen, tints = math.huge, math.huge, {}
     for _, palette in ipairs(ns.Palettes) do
         for _, hex in ipairs(palette.colors) do
             local r, g, b = tonumber(hex:sub(1, 2), 16) / 255, tonumber(hex:sub(3, 4), 16) / 255, tonumber(hex:sub(5, 6), 16) / 255
@@ -696,9 +701,37 @@ test("16. a palette tones the title bands, tab strip, footer and plates, and swa
                     for _, text in ipairs({CREAM, CREAM_SOFT}) do worst = math.min(worst, contrast(text, tone)) end
                 end
             end
-            for _, band in ipairs(bands) do worstTitle = math.min(worstTitle, contrast(ink, band.toneLow), contrast(ink, band.toneHigh)) end
+            for _, band in ipairs(bands) do
+                worstTitle = math.min(worstTitle, contrast(ink, band.toneLow), contrast(ink, band.toneHigh))
+                worstTitleSheen = math.min(worstTitleSheen, contrast(over(ink, 1, topA), over(band.toneLow, 1, topA)))
+            end
+            for _, tone in ipairs(ns.FooterBar.tone) do
+                worstFooterSheen = math.min(worstFooterSheen, contrast(over(CREAM_SOFT, 0, S.bottom), over(tone, 0, S.bottom)))
+            end
+            -- the frame takes the palette tone too (one tint per swatch, the same on every window)
+            local t = Maines_Frame.maines_frame.tint
+            for _, w in ipairs(windows) do
+                local u = w.maines_frame.tint
+                ok(math.abs(u[1] - t[1]) + math.abs(u[2] - t[2]) + math.abs(u[3] - t[3]) < 1e-9, "every window frame shares the tint")
+                eq(w.maines_frame.tl:GetVertexColor(), t[1], "frame pieces carry the tint")
+            end
+            tints[("%.3f %.3f %.3f"):format(t[1], t[2], t[3])] = true
         end
     end
+    local distinct = 0
+    for _ in pairs(tints) do distinct = distinct + 1 end
+    ok(distinct >= 40, "the frame color follows the swatch (" .. distinct .. " different tints)")
+    -- the sheen: on top of everything, never catching the mouse, faint enough to keep text readable
+    for _, w in ipairs(windows) do
+        local sh = w.maines_sheen
+        ok(sh, "window has a sheen")
+        ok(not sh:IsMouseEnabled(), "sheen does not take the mouse")
+        ok(sh:GetFrameLevel() > w:GetFrameLevel() + 10, "sheen sits above the window's panels")
+    end
+    ok(S.top + S.corner <= 0.12 and S.bottom <= 0.12, "sheen stays within 0.12 alpha")
+    ok(worstTitleSheen >= 3.0, ("title (large display text) still >= 3:1 under the sheen (worst %.2f)"):format(worstTitleSheen))
+    ok(worstFooterSheen >= 4.5, ("footer text still >= 4.5:1 under the sheen (worst %.2f)"):format(worstFooterSheen))
+    note(("(under the sheen: worst title %.2f, worst footer text %.2f; %d frame tints)"):format(worstTitleSheen, worstFooterSheen, distinct))
     ok(worstTitle >= contrast(ink, brassLow) - 1e-6, ("title ink contrast kept on every swatch (worst %.2f)"):format(worstTitle))
     note(("(%d swatches checked; worst title contrast %.2f)"):format(swatches, worstTitle))
     -- no palette name: the start look's overlays come back

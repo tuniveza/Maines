@@ -232,7 +232,7 @@ function Fr:StartMoving() end
 function Fr:StopMovingOrSizing() end
 for _, n in ipairs({ "RegisterForDrag", "SetClampedToScreen", "SetToplevel", "SetHitRectInsets",
     "SetFixedFrameStrata", "SetFixedFrameLevel", "SetUserPlaced", "SetDontSavePosition",
-    "SetClipsChildren", "SetResizeBounds", "SetClampRectInsets" }) do storeSetter("frame", n) end
+    "SetClipsChildren", "SetResizeBounds", "SetClampRectInsets", "SetMouseClickEnabled" }) do storeSetter("frame", n) end
 function Fr:Raise() end
 function Fr:Lower() end
 
