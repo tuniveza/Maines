@@ -4,7 +4,7 @@
 
     DESCRIPTION: Take your main name to the chat frame then gtfo
 
-    ADDON_AUTHOR: Dominic Hughes / Misamu - EU - Universe of Warcraft - Alliance - Silvermoon
+    ADDON_AUTHOR: Dominic Hughes / Zuniversa / Tuniveza - EU - Universe of Warcraft - Silvermoon
 
     NOTES: Was so tired of seeing other addons not be customizable and up to scratch; then made this!
 
@@ -23,8 +23,8 @@
     [main] slash commands
     /main - to see your mainname and brackets type
     /mains  [/mains mainname leftbracketype]
-    /mains  [/mains mainname symbol]            -- one custom symbol used for BOTH brackets, e.g. /mains Misamu *  ->  *Misamu*
-    /mains  [/mains mainname left right]        -- independent left/right symbol sequences, e.g. /mains Misamu << >>  ->  <<Misamu>>
+    /mains  [/mains mainname symbol]            -- one custom symbol used for BOTH brackets, e.g. /mains Tuniveza *  ->  *Tuniveza*
+    /mains  [/mains mainname left right]        -- independent left/right symbol sequences, e.g. /mains Tuniveza << >>  ->  <<Tuniveza>>
     /maines - to open the maines user interfaces
 
     [extra] slash commands:
@@ -239,7 +239,7 @@
     ==========================================
     Previously Maines tagged chat the same way no matter which character was logged
     in, including your actual main - so playing your main produced messages like
-    "(Misamu) hello" while you WERE Misamu. Maines now compares the logged-in
+    "(Tuniveza) hello" while you WERE Tuniveza. Maines now compares the logged-in
     character's name against your saved main name (case-insensitive) and, by
     default, suppresses the tag when they match. /mainshow switches back to
     always tagging, even on your main; /mainhide restores the default. Alts
@@ -1295,7 +1295,7 @@ local Help_Sections = {
         entries = {
             {cmd = "/mains", args = "<name> <bracket>",
                 desc = "Set your main's name and bracket style.",
-                example = "/mains Misamu (  ->  tags chat as (Misamu)"},
+                example = "/mains Tuniveza (  ->  tags chat as (Tuniveza)"},
             {cmd = "/main", args = "",
                 desc = "Print your currently saved main name and bracket.",
                 example = "/main"},
@@ -1501,7 +1501,7 @@ local function Maines_BuildHelpContent()
     exampleFS:SetPoint("TOP", 0, y)
     exampleFS:SetWidth(HELP_CONTENT_WIDTH - 12)
     exampleFS:SetJustifyH("CENTER")
-    exampleFS:SetText(HEX_SOFT .. "Example tagged message:|r  " .. HEX_ACCENT .. "(Misamu)|r " .. HEX_TEXT .. "Hello there, guildies!|r")
+    exampleFS:SetText(HEX_SOFT .. "Example tagged message:|r  " .. HEX_ACCENT .. "(Tuniveza)|r " .. HEX_TEXT .. "Hello there, guildies!|r")
     y = y - exampleFS:GetStringHeight() - 22
 
     for _, section in ipairs(Help_Sections) do
@@ -1918,7 +1918,7 @@ local creditsLine1 = footerBar:CreateFontString(nil, "OVERLAY")
 creditsLine1:SetFontObject(Maines_Font_BodySmall)
 creditsLine1:SetPoint("TOP", 0, -7)
 creditsLine1:SetJustifyH("CENTER")
-creditsLine1:SetText("Designed by Dominic Hughes / Tuniveza  -  Silvermoon EU, Universe of Warcraft")
+creditsLine1:SetText("Designed by Dominic Hughes / Zuniversa / Tuniveza  -  Silvermoon EU, Universe of Warcraft")
 creditsLine1:SetTextColor(PLATE_TEXT[1], PLATE_TEXT[2], PLATE_TEXT[3])
 
 -- Shifted right by half the stamp's width (+ gap) so stamp and text together stay centered.
@@ -2420,7 +2420,7 @@ local NOTE_PROJECTS = {
     "Predetermination of Other Future Projects ; Etc",
 }
 local NOTE_CLOSING = {"That's Why It Has Taken So Long", "Please Bare With Me"}
-local NOTE_SIGNATURE = "- Dominic Hughes / Tuniveza"
+local NOTE_SIGNATURE = "- Dominic Hughes / Zuniversa / Tuniveza"
 local NOTE_NEW = {
     "Saved phrases on a shortcut key (Phrases page)",
     "An animated tag that changes with each message (Animate page)",

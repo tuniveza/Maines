@@ -242,8 +242,8 @@ local ns = mock.ns
 local slash = mock.slash
 
 -- ---------------------------------------------------------------- sample settings
--- Logged in as an alt, main set to Misamu with square brackets: the preview shows a tag.
-slash("/mains Misamu [")
+-- Logged in as an alt, main set to Tuniveza with square brackets: the preview shows a tag.
+slash("/mains Tuniveza [")
 slash("/mainchat guild, raid, party")
 slash("/mainchat mode include")
 slash("/mainphrase add Heading to the next pull in 2 minutes, grab your flasks!")

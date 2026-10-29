@@ -1,7 +1,7 @@
 ## Interface: 120105
 ## Title: Maines
 ## Notes: Plaster Your Main Name To Chat Frame in Style
-## Author: Universa / Dominic Hughes
+## Author: Zuniversa / Tuniveza (Dominic Hughes)
 ## Version: @project-version@
 ## Category: Chat
 ## IconTexture: Interface\AddOns\Maines\textures\logo

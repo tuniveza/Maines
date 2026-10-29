@@ -21,7 +21,7 @@ Never again.
 your raid always know who is really talking, whichever alt you are wearing today.
 
 ```
-[Guild] [Linenseller]: [Misamu] anyone up for a key?
+[Guild] [Linenseller]: [Tuniveza] anyone up for a key?
 ```
 
 Set it once. Chat as normal. Get on with your evening.
@@ -30,21 +30,35 @@ Set it once. Chat as normal. Get on with your evening.
   <img src="docs/media/tag-anim.gif" width="760" alt="A WoW-style chat frame: messages go out one by one, each tagged with the main name, and the tag changes a little with every message">
 </p>
 
-## The GLYPH stamp
+<h2 align="center">The GLYPH stamp</h2>
 
 Every Maines release gets a name instead of a version number, stamped like a seal on a letter.
 **GLYPH** is the one where Maines learned to talk back:
 
-| | |
-|---|---|
-| ✦ **Animated tag** | Your tag shifts a little with every message: bracket cycle, typewriter, capital wave, twinkle, or your own phrases. |
-| 💬 **Saved phrases** | One key drops your next saved line into the chat box. Press again for the one after. |
-| 🛡 **Textual Badges** | Send a whole picture to chat, one line at a time. Ten come in the box; draw your own. |
-| 🔩 **A new coat of brass** | Parchment, brushed brass, soft gradients, bevelled buttons and hand-made icons. |
+<table align="center">
+<tbody>
+<tr>
+<td>✦ <strong>Animated tag</strong></td>
+<td>Your tag shifts a little with every message: bracket cycle, typewriter, capital wave, twinkle, or your own phrases.</td>
+</tr>
+<tr>
+<td>💬 <strong>Saved phrases</strong></td>
+<td>One key drops your next saved line into the chat box. Press again for the one after.</td>
+</tr>
+<tr>
+<td>🛡 <strong>Textual Badges</strong></td>
+<td>Send a whole picture to chat, one line at a time. Ten come in the box; draw your own.</td>
+</tr>
+<tr>
+<td>🔩 <strong>A new coat of brass</strong></td>
+<td>Parchment, brushed brass, soft gradients, bevelled buttons and hand-made icons.</td>
+</tr>
+</tbody>
+</table>
 
 Full notes for every stamp: [CHANGELOG.md](CHANGELOG.md).
 
-## Install
+<h2 align="center">Install</h2>
 
 **CurseForge app:** search for **Maines** and press Install.
 
@@ -56,18 +70,18 @@ Full notes for every stamp: [CHANGELOG.md](CHANGELOG.md).
 > Don't use the green **Code → Download ZIP** button.
 > That folder is called `Maines-main`, and WoW will ignore it.
 
-## Quick start
+<h2 align="center">Quick start</h2>
 
-1. Log in on any character and type `/mains Misamu [` (your main's name, then a bracket).
+1. Log in on any character and type `/mains Tuniveza [` (your main's name, then a bracket).
 2. Hop to an alt and say something.
-3. It goes out as `[Misamu] something`.
+3. It goes out as `[Tuniveza] something`.
 
 On your main itself, Maines stays quiet. Nobody needs to be told who you are when you are you.
 (Change that with `/mainshow`.)
 
 Prefer buttons? Type **`/maines`** or left-click the brass **M** on your minimap.
 
-## The workshop
+<h2 align="center">The workshop</h2>
 
 <p align="center">
   <img src="docs/media/window-tour.gif" width="760" alt="The Maines window: a parchment-and-brass control panel with a row of tabs, cycling through each page">
@@ -92,7 +106,7 @@ Every page of the window does exactly what the slash commands do. Use whichever 
 
 <sub>Window pictures are rendered offline from the addon's real UI code (its own layout, colours, textures and font), not captured in game.</sub>
 
-## Saved phrases
+<h2 align="center">Saved phrases</h2>
 
 Keep the things you say every night on a key: `LF1M`, `ty for the group!`, `gz`, or a row of symbols you can never remember how to type.
 
@@ -106,21 +120,44 @@ Keep the things you say every night on a key: `LF1M`, `ty for the group!`, `gz`,
 
 Maines never sends anything for you. You always press Enter yourself.
 
-## Animated tag
+<h2 align="center">Animated tag</h2>
 
 Your name, but restless. One step per message, or one step every 30 seconds to 15 minutes.
 
-| Style | What your guild sees, message by message |
-|---|---|
-| Bracket cycle | `[Misamu]` → `(Misamu)` → `<Misamu>` → `{Misamu}` |
-| Typewriter | `[M]` → `[Mi]` → `[Mis]` → … → `[Misamu]` |
-| Capital wave | `[mIsamu]` → `[miSamu]` → `[misAmu]` → … → `[Misamu]` |
-| Twinkle | `[Misamu *]` → `[Misamu +]` → `[Misamu x]` → `[Misamu +]` |
-| My phrases | your tag, then your next saved phrase |
+<table align="center">
+<thead>
+<tr>
+<th>Style</th>
+<th>What your guild sees, message by message</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bracket cycle</td>
+<td><code>[Tuniveza]</code> → <code>(Tuniveza)</code> → <code>&lt;Tuniveza&gt;</code> → <code>{Tuniveza}</code></td>
+</tr>
+<tr>
+<td>Typewriter</td>
+<td><code>[Z]</code> → <code>[Zu]</code> → <code>[Zun]</code> → … → <code>[Tuniveza]</code></td>
+</tr>
+<tr>
+<td>Capital wave</td>
+<td><code>[tUniveza]</code> → <code>[tuNiveza]</code> → <code>[tunIveza]</code> → … → <code>[Tuniveza]</code></td>
+</tr>
+<tr>
+<td>Twinkle</td>
+<td><code>[Tuniveza *]</code> → <code>[Tuniveza +]</code> → <code>[Tuniveza x]</code> → <code>[Tuniveza +]</code></td>
+</tr>
+<tr>
+<td>My phrases</td>
+<td>your tag, then your next saved phrase</td>
+</tr>
+</tbody>
+</table>
 
 Pick one on the **Animate** page, or `/mainanim typewriter`. `/mainanim off` keeps it still.
 
-## Textual Badges
+<h2 align="center">Textual Badges</h2>
 
 Why say *gg* when you can send a five-line **GG** carved in text?
 
@@ -137,7 +174,7 @@ Draw and save your own on the **Badges** page.
 
 One badge every 3 minutes. Your guild will thank you. Mostly.
 
-## Paint the brass
+<h2 align="center">Paint the brass</h2>
 
 `/maincolor` (or right-click the minimap button) repaints the whole window from one of 13 palettes.
 Some come from famous paintings: *The Starry Night*, *The Great Wave*, *The Kiss*, *Nighthawks*, *The Scream* and more.
@@ -148,25 +185,78 @@ Pick a swatch yourself on the **Cosmetic** page. The reading text stays dark ink
   <img src="docs/media/palettes.gif" width="560" alt="The Maines window being repainted by several /maincolor rolls">
 </p>
 
-## Commands
+<h2 align="center">Commands</h2>
 
-| Command | What it does |
-|---|---|
-| `/mains <name> <bracket>` | Set your main and bracket: `/mains Misamu (`, `/mains Misamu *`, `/mains Misamu << >>` |
-| `/main` | Show what's set |
-| `/maines` | Open the window |
-| `/mainhide` · `/mainshow` | Stay quiet on your main (default) · always tag |
-| `/mainchat` | Choose channels: `SAY,GUILD`, `+WHISPER`, `-SAY,-YELL`, `list`, `mode exclude`, `sticky` |
-| `/mainphrase` | `add <text>`, `del <n>`, `list`, `clear`, `next`, `prev` |
-| `/mainanim` | `<style>`, `message`, `time <seconds>` |
-| `/mainbadge` | `list`, `show <n>`, `send <n> [channel]` |
-| `/maincolor` | Roll a new painting palette |
-| `/mainmap` | Show or hide the minimap button |
-| `/bracket` | List the built-in bracket styles |
-| `/mainhelp` | Every command, with examples, in a window (`/mainhelp text` prints to chat) |
-| `/mainnote` | What's new in this stamp |
-| `/mainstamp` | Which stamp you're running |
-| `/maindebug` | Explain every tagging decision as you type |
+<table align="center">
+<thead>
+<tr>
+<th>Command</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/mains &lt;name&gt; &lt;bracket&gt;</code></td>
+<td>Set your main and bracket: <code>/mains Tuniveza (</code>, <code>/mains Tuniveza *</code>, <code>/mains Tuniveza &lt;&lt; &gt;&gt;</code></td>
+</tr>
+<tr>
+<td><code>/main</code></td>
+<td>Show what's set</td>
+</tr>
+<tr>
+<td><code>/maines</code></td>
+<td>Open the window</td>
+</tr>
+<tr>
+<td><code>/mainhide</code> · <code>/mainshow</code></td>
+<td>Stay quiet on your main (default) · always tag</td>
+</tr>
+<tr>
+<td><code>/mainchat</code></td>
+<td>Choose channels: <code>SAY,GUILD</code>, <code>+WHISPER</code>, <code>-SAY,-YELL</code>, <code>list</code>, <code>mode exclude</code>, <code>sticky</code></td>
+</tr>
+<tr>
+<td><code>/mainphrase</code></td>
+<td><code>add &lt;text&gt;</code>, <code>del &lt;n&gt;</code>, <code>list</code>, <code>clear</code>, <code>next</code>, <code>prev</code></td>
+</tr>
+<tr>
+<td><code>/mainanim</code></td>
+<td><code>&lt;style&gt;</code>, <code>message</code>, <code>time &lt;seconds&gt;</code></td>
+</tr>
+<tr>
+<td><code>/mainbadge</code></td>
+<td><code>list</code>, <code>show &lt;n&gt;</code>, <code>send &lt;n&gt; [channel]</code></td>
+</tr>
+<tr>
+<td><code>/maincolor</code></td>
+<td>Roll a new painting palette</td>
+</tr>
+<tr>
+<td><code>/mainmap</code></td>
+<td>Show or hide the minimap button</td>
+</tr>
+<tr>
+<td><code>/bracket</code></td>
+<td>List the built-in bracket styles</td>
+</tr>
+<tr>
+<td><code>/mainhelp</code></td>
+<td>Every command, with examples, in a window (<code>/mainhelp text</code> prints to chat)</td>
+</tr>
+<tr>
+<td><code>/mainnote</code></td>
+<td>What's new in this stamp</td>
+</tr>
+<tr>
+<td><code>/mainstamp</code></td>
+<td>Which stamp you're running</td>
+</tr>
+<tr>
+<td><code>/maindebug</code></td>
+<td>Explain every tagging decision as you type</td>
+</tr>
+</tbody>
+</table>
 
 **Minimap button:** left-click opens the window · right-click repaints it · middle-click clears your channel filter · drag to move.
 
@@ -217,7 +307,7 @@ Valid names: `SAY`, `YELL`, `EMOTE`, `PARTY`, `PARTY_LEADER`, `RAID`, `RAID_LEAD
   [Agave](https://github.com/blobject/agave) (SIL Open Font License 1.1).
 </details>
 
-## Author
+<h2 align="center">Author</h2>
 
-Made by **Misamu** (Dominic Hughes) · EU Silvermoon · Alliance.
+Made by **Zuniversa / Tuniveza** (Dominic Hughes) · EU Silvermoon.
 Say hi in game. You'll know it's me: the tag gives it away.

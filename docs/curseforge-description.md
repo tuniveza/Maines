@@ -7,7 +7,7 @@ Maines puts your main character's name in front of everything you say in chat.
 Your guild sees who is really talking, whichever character you're on.
 
 ```
-[Guild] [Linenseller]: [Misamu] anyone up for a key?
+[Guild] [Linenseller]: [Tuniveza] anyone up for a key?
 ```
 
 No more "who is this?" in guild chat.
@@ -30,7 +30,7 @@ On your main, Maines stays quiet, because everyone already knows it's you.
 ## What you get
 
 **🏷️ Your name, your style**
-Pick a bracket: `[Misamu]` `(Misamu)` `<Misamu>` `{Misamu}`, or any symbol you like.
+Pick a bracket: `[Tuniveza]` `(Tuniveza)` `<Tuniveza>` `{Tuniveza}`, or any symbol you like.
 
 **✨ A tag that moves**
 Your tag can change with each message. It can type itself out, roll a capital letter through your name, or twinkle.
@@ -87,7 +87,7 @@ Never. Maines only adds your tag to messages you send yourself.
 
 ---
 
-Made by **Misamu**, EU Silvermoon. Say hi in game: you'll know it's me.
+Made by **Zuniversa / Tuniveza**, EU Silvermoon. Say hi in game: you'll know it's me.
 
 Found a bug or have an idea? [Tell me on GitHub](https://github.com/tuniveza/Maines/issues).
 
