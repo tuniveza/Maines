@@ -547,6 +547,32 @@ def main():
     save_gif(os.path.join(OUT_DIR, "palettes.gif"), pframes, pdurs)
     print("wrote docs/media/palettes.gif")
 
+    # contact sheet: the start look, then every palette (its first colour), two to a row.
+    # MAINES_PALETTE_FRAMES=<dir> also keeps each palette's full-size frame there.
+    tiles = [caption_strip(get("palette_0"), "start look (grain + brushed brass)")]
+    keep = os.environ.get("MAINES_PALETTE_FRAMES")
+    i = 1
+    while "sheet_%d" % i in scenes:
+        sc = scenes["sheet_%d" % i]
+        frame = caption_strip(render_scene(sc, crop), sc.get("caption", ""))
+        if keep:
+            os.makedirs(keep, exist_ok=True)
+            to_image(frame).save(os.path.join(keep, "palette-%02d.png" % i))
+        tiles.append(frame)
+        i += 1
+    tw, cols = 640, 2
+    small = []
+    for t in tiles:
+        im = to_image(t)
+        small.append(im.resize((tw, int(round(im.height * tw / im.width))), Image.LANCZOS))
+    th = small[0].height
+    rows = (len(small) + cols - 1) // cols
+    sheet = Image.new("RGB", (cols * tw, rows * th), (14, 13, 12))
+    for n, im in enumerate(small):
+        sheet.paste(im, ((n % cols) * tw, (n // cols) * th))
+    sheet.save(os.path.join(OUT_DIR, "palette-sheet.png"), optimize=True)
+    print("wrote docs/media/palette-sheet.png")
+
 
 if __name__ == "__main__":
     main()

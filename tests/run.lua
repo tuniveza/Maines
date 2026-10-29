@@ -536,6 +536,64 @@ test("13. author's note: pops up once after login for a new release, /mainnote r
     ok(note:GetHeight() > 300, "laid out to its text (" .. note:GetHeight() .. "px)")
 end)
 
+test("14. a palette tones the title bands and swaps every grain/brushed overlay for its own", function()
+    local ns = mock.ns
+    slash("/maines"); slash("/mainnote")
+    local base = "Interface\\AddOns\\Maines\\textures\\"
+    local function lum(c) return 0.2126 * c[1] + 0.7152 * c[2] + 0.0722 * c[3] end
+    -- earlier tests clicked every swatch, so first put the start look back (no palette name)
+    ns.ApplyPaletteColor(0.70, 0.47, 0.18)
+    local overlays, bands = {}, {}
+    for _, o in ipairs(mock.objects) do
+        if o._texture == base .. "grain.tga" then overlays[#overlays + 1] = {tex = o, role = "paper"} end
+        if o._texture == base .. "brushed.tga" then overlays[#overlays + 1] = {tex = o, role = "metal"} end
+        if type(o.toneLow) == "table" then bands[#bands + 1] = o end
+    end
+    local metals = 0
+    for _, ov in ipairs(overlays) do if ov.role == "metal" then metals = metals + 1 end end
+    ok(#overlays > metals and metals >= 2, "found paper and metal overlays (" .. #overlays .. ", " .. metals .. " metal)")
+    eq(#bands, 2, "two title bands (window header, note strip)")
+    -- the start brass (Maines_DressBrassBand's BAND_LOW / BAND_HIGH)
+    local brassLow, brassHigh = {0.60, 0.45, 0.24}, {0.82, 0.67, 0.42}
+
+    local seen = {}
+    for _, palette in ipairs(ns.Palettes) do
+        ok(palette.surface, palette.name .. " names its surface")
+        ok(not seen[palette.surface], "surface " .. tostring(palette.surface) .. " used once"); seen[palette.surface] = true
+        local hex = palette.colors[1]
+        local r, g, b = tonumber(hex:sub(1, 2), 16) / 255, tonumber(hex:sub(3, 4), 16) / 255, tonumber(hex:sub(5, 6), 16) / 255
+        ns.ApplyPaletteColor(r, g, b, hex, palette.name)
+        eq(ns.ActivePalette(), palette, "active palette")
+        local want = {
+            paper = base .. "palettes\\" .. palette.surface .. ".tga",
+            metal = base .. "palettes\\" .. palette.surface .. "_band.tga",
+        }
+        for _, ov in ipairs(overlays) do
+            eq(ov.tex._texture, want[ov.role], palette.name .. " " .. ov.role .. " overlay")
+            ok(ov.tex._set.SetHorizTile and ov.tex._set.SetHorizTile[1], "overlay still tiles")
+        end
+        for _, path in pairs(want) do
+            local f = io.open(repoRoot .. "/" .. path:gsub("^Interface\\AddOns\\Maines\\", ""):gsub("\\", "/"), "rb")
+            ok(f, "texture on disk: " .. path)
+            if f then f:close() end
+        end
+        for _, band in ipairs(bands) do
+            local moved = math.abs(band.toneHigh[1] - brassHigh[1]) + math.abs(band.toneHigh[3] - brassHigh[3])
+            ok(moved > 0.02, palette.name .. ": title band takes the palette color")
+            -- the title's ink is fixed, so an unchanged band brightness = unchanged contrast
+            ok(math.abs(lum(band.toneLow) - lum(brassLow)) < 1e-6, palette.name .. ": band low stop keeps its brightness")
+            ok(math.abs(lum(band.toneHigh) - lum(brassHigh)) < 1e-6, palette.name .. ": band high stop keeps its brightness")
+        end
+    end
+    -- no palette name: the start look's overlays come back
+    ns.ApplyPaletteColor(0.70, 0.47, 0.18)
+    for _, ov in ipairs(overlays) do
+        eq(ov.tex._texture, base .. (ov.role == "metal" and "brushed.tga" or "grain.tga"), "start overlay restored")
+    end
+    note("(" .. #overlays .. " overlays, " .. #ns.Palettes .. " palettes checked)")
+    Maines_NoteFrame:Hide()
+end)
+
 -- ---------------------------------------------------------------- summary
 local function sortedKeys(t) local k = {}; for n in pairs(t) do k[#k + 1] = n end; table.sort(k); return k end
 out(("== %d passed, %d failed"):format(passed, failed))

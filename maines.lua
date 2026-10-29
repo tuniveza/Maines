@@ -414,23 +414,25 @@ local Bracket_Types = {
 
 -- /maincolor: dominant colors pulled from well-known public-domain paintings, plus a few
 -- named "workshop" schemes tuned for the gnomish/goblin-engineering theme itself. Each entry
--- is a {name = ..., colors = {hex, hex, ...}} table; the command rolls a random palette, then
--- a random color from within it. The Cosmetic tab also lets you pick an exact swatch instead
+-- is a {name = ..., colors = {hex, hex, ...}, surface = key} table; the command rolls a random
+-- palette, then a random color from within it. `surface` names the palette's own paper and band
+-- textures (textures/palettes/<key>.tga and <key>_band.tga, from tools/make_textures.py), which
+-- replace the start look's grain and brushed overlays while that palette is active. The Cosmetic tab also lets you pick an exact swatch instead
 -- of rolling randomly.
 local Color_Palettes = {
-    {name = "The Starry Night (Van Gogh, 1889)", colors = {"1B3B6F", "2E5A87", "0B1F3A", "F3D250", "F7E7A0"}},
-    {name = "The Great Wave off Kanagawa (Hokusai, c.1831)", colors = {"1B3A5C", "3E6E96", "C9D8E0", "EDE4D3", "2A2A2A"}},
-    {name = "The Kiss (Klimt, 1908)", colors = {"C9A227", "8B1E3F", "1C1C1C", "D4AF37", "5A3E2B"}},
-    {name = "Water Lilies (Monet, 1906)", colors = {"7FA6A0", "A8C9C4", "D9A6C2", "5B7C99", "EDEAD9"}},
-    {name = "The Scream (Munch, 1893)", colors = {"E8622C", "F2A65A", "2E3A6E", "8C1C13", "F4E3B2"}},
-    {name = "Composition II (Mondrian, 1930)", colors = {"D40920", "1356A2", "F7D842", "1B1B1B", "F5F5F0"}},
-    {name = "Nighthawks (Hopper, 1942)", colors = {"2B3A42", "6E8894", "C9B896", "8A3B2E", "0E1416"}},
-    {name = "The Persistence of Memory (Dali, 1931)", colors = {"C98A4B", "6E7A8A", "2E2A24", "8C6A3E", "D9C7A3"}},
-    {name = "Gnomeregan Copper", colors = {"B5651D", "8A4A1E", "D98F3B", "5A3A1E", "C97D3E"}},
-    {name = "Undermine Neon", colors = {"E84C4C", "F2C230", "3BB273", "2E86AB", "1B1B2E"}},
-    {name = "Ironforge Brass & Steel", colors = {"9C7A3C", "6B7280", "3A3A3A", "C9A66B", "8A8F98"}},
-    {name = "Verdigris Goblin", colors = {"4E7A5C", "2E4A38", "8AA88A", "6B5B3E", "1C2B22"}},
-    {name = "Blueprint Ink", colors = {"1B3A5C", "3E6E96", "C9D8E0", "F5F5F0", "0B1F3A"}},
+    {name = "The Starry Night (Van Gogh, 1889)", colors = {"1B3B6F", "2E5A87", "0B1F3A", "F3D250", "F7E7A0"}, surface = "starry"},
+    {name = "The Great Wave off Kanagawa (Hokusai, c.1831)", colors = {"1B3A5C", "3E6E96", "C9D8E0", "EDE4D3", "2A2A2A"}, surface = "wave"},
+    {name = "The Kiss (Klimt, 1908)", colors = {"C9A227", "8B1E3F", "1C1C1C", "D4AF37", "5A3E2B"}, surface = "kiss"},
+    {name = "Water Lilies (Monet, 1906)", colors = {"7FA6A0", "A8C9C4", "D9A6C2", "5B7C99", "EDEAD9"}, surface = "lilies"},
+    {name = "The Scream (Munch, 1893)", colors = {"E8622C", "F2A65A", "2E3A6E", "8C1C13", "F4E3B2"}, surface = "scream"},
+    {name = "Composition II (Mondrian, 1930)", colors = {"D40920", "1356A2", "F7D842", "1B1B1B", "F5F5F0"}, surface = "mondrian"},
+    {name = "Nighthawks (Hopper, 1942)", colors = {"2B3A42", "6E8894", "C9B896", "8A3B2E", "0E1416"}, surface = "nighthawks"},
+    {name = "The Persistence of Memory (Dali, 1931)", colors = {"C98A4B", "6E7A8A", "2E2A24", "8C6A3E", "D9C7A3"}, surface = "memory"},
+    {name = "Gnomeregan Copper", colors = {"B5651D", "8A4A1E", "D98F3B", "5A3A1E", "C97D3E"}, surface = "copper"},
+    {name = "Undermine Neon", colors = {"E84C4C", "F2C230", "3BB273", "2E86AB", "1B1B2E"}, surface = "neon"},
+    {name = "Ironforge Brass & Steel", colors = {"9C7A3C", "6B7280", "3A3A3A", "C9A66B", "8A8F98"}, surface = "ironforge"},
+    {name = "Verdigris Goblin", colors = {"4E7A5C", "2E4A38", "8AA88A", "6B5B3E", "1C2B22"}, surface = "verdigris"},
+    {name = "Blueprint Ink", colors = {"1B3A5C", "3E6E96", "C9D8E0", "F5F5F0", "0B1F3A"}, surface = "blueprint"},
 }
 
 local function Maines_HexToRGB(hex)
@@ -500,6 +502,15 @@ local TEXTURES = "Interface\\AddOns\\Maines\\textures\\"
 local GRAIN_TEXTURE = TEXTURES .. "grain.tga"
 local BRUSHED_TEXTURE = TEXTURES .. "brushed.tga"
 local GLOW_TEXTURE = TEXTURES .. "glow.tga"
+-- Each /maincolor palette's own surfaces (see Color_Palettes' `surface`): "paper" overlays
+-- replace GRAIN_TEXTURE, "metal" overlays (the title bands' streaks) replace BRUSHED_TEXTURE.
+local SURFACE_DEFAULT = {paper = GRAIN_TEXTURE, metal = BRUSHED_TEXTURE}
+local function Maines_SurfacePath(key, role)
+    if not key then return SURFACE_DEFAULT[role] end
+    return TEXTURES .. "palettes\\" .. key .. (role == "metal" and "_band" or "") .. ".tga"
+end
+local Palette_ByName = {}
+for _, palette in ipairs(Color_Palettes) do Palette_ByName[palette.name] = palette end
 -- Maines' own line-art icons (tools/make_icons.py): white, tinted in game.
 local ICONS = TEXTURES .. "icons\\"
 local LOGO_TEXTURE = TEXTURES .. "logo.tga"
@@ -537,6 +548,14 @@ local function Maines_RegisterButton(btn)
     table.insert(Maines_Textures, {button = btn})
     return btn
 end
+-- A tiled surface overlay (paper grain, brushed streaks): /maincolor swaps its texture for the
+-- palette's own (role "paper" or "metal") and tints it from its fixed start tint toward a deep
+-- shade of the palette color, kept at the start tint's brightness so the overlay darkens the
+-- surface exactly as much as before.
+local function Maines_RegisterSurface(tex, role, tint)
+    table.insert(Maines_Textures, {surface = tex, role = role, tint = tint})
+    return tex
+end
 local FILL_BLEND = 0.55
 -- Forward-declared, assigned down by Maines_MakeButton - same pattern as Maines_Window and
 -- Maines_LayoutMainPanel elsewhere in this file, for the same reason: this function needs to
@@ -545,6 +564,33 @@ local Maines_SetButtonBaseColor
 
 local function Maines_Luminance(r, g, b)
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
+end
+
+-- Mixes `base` toward (r, g, b) by t, then brightens or darkens the result until it has exactly
+-- base's luminance. The hue follows the palette, the brightness never moves - which is what keeps
+-- fixed-color text on these surfaces at the same contrast as the start look, whatever palette is
+-- rolled. Brightening scales the color up first (keeping its hue and saturation) and only lifts
+-- toward white once a channel is full. (Luminance is linear in r, g, b, so each step hits its
+-- target exactly.)
+local function Maines_ToneLike(base, r, g, b, t)
+    local cr = base[1] + (r - base[1]) * t
+    local cg = base[2] + (g - base[2]) * t
+    local cb = base[3] + (b - base[3]) * t
+    local want, have = Maines_Luminance(base[1], base[2], base[3]), Maines_Luminance(cr, cg, cb)
+    if have < want then
+        local top = math.max(cr, cg, cb)
+        if have > 0 and top > 0 then
+            local k = math.min(want / have, 1 / top)
+            cr, cg, cb = cr * k, cg * k, cb * k
+            have = have * k
+        end
+        local k = (want - have) / (1 - have)
+        cr, cg, cb = cr + (1 - cr) * k, cg + (1 - cg) * k, cb + (1 - cb) * k
+    elseif have > 0 then
+        local k = want / have
+        cr, cg, cb = cr * k, cg * k, cb * k
+    end
+    return cr, cg, cb
 end
 
 -- Accent text only ever sits on a dark walnut plate, so a dark palette color (e.g. Starry
@@ -557,10 +603,24 @@ local function Maines_LiftForText(r, g, b)
     return r, g, b
 end
 
+-- The palette whose surfaces are showing (nil = the start look's grain and brushed brass).
+local Maines_ActivePalette
+
+-- `label` is the palette's name; it also picks the palette's surface textures (an unknown or
+-- missing label puts the start look's grain and brushed overlays back).
 local function Maines_ApplyPaletteColor(r, g, b, hex, label)
     ACCENT[1], ACCENT[2], ACCENT[3] = r, g, b
+    local palette = label and Palette_ByName[label]
+    Maines_ActivePalette = palette
+    local surfaceKey = palette and palette.surface
     for _, entry in ipairs(Maines_Textures) do
-        if entry.texture then
+        if entry.surface then
+            local tex = entry.surface
+            tex:SetTexture(Maines_SurfacePath(surfaceKey, entry.role), "REPEAT", "REPEAT")
+            tex:SetHorizTile(true)
+            tex:SetVertTile(true)
+            tex:SetVertexColor(Maines_ToneLike(entry.tint, r * 0.35, g * 0.35, b * 0.35, FILL_BLEND))
+        elseif entry.texture then
             entry.texture:SetVertexColor(r, g, b)
         elseif entry.button then
             Maines_SetButtonBaseColor(entry.button, r, g, b)
@@ -612,6 +672,7 @@ local function Maines_DressSurface(frame, inset, grainAlpha)
     grain:SetVertTile(true)
     grain:SetVertexColor(0.30, 0.18, 0.06)
     grain:SetAlpha(grainAlpha or 0.30)
+    Maines_RegisterSurface(grain, "paper", {0.30, 0.18, 0.06})
     return shade, grain
 end
 
@@ -1723,11 +1784,16 @@ Maines_AddOuterGlow(Maines_Window, 22, 0.35)
 -- Dresses a band (the window header, the note's title strip) as brushed brass: a warm gradient,
 -- tiled brushed-metal streaks and paper grain, darker toward both ends, a fine highlight along
 -- the top edge and an accent rule along the bottom.
+-- /maincolor tones the whole band toward the palette color (BAND_BLEND) and swaps its streaks
+-- and grain for the palette's own surfaces, but every layer keeps its start brightness
+-- (Maines_ToneLike), so the dark engraved title on top reads exactly as well as on plain brass.
+local BAND_BLEND = 0.7
+local BAND_LOW, BAND_HIGH = {0.60, 0.45, 0.24}, {0.82, 0.67, 0.42}
+local BAND_SHADE = {0.18, 0.09, 0.02}
 local function Maines_DressBrassBand(band)
     local headerBg = band:CreateTexture(nil, "BACKGROUND", nil, 0)
     headerBg:SetAllPoints()
     headerBg:SetTexture("Interface\\Buttons\\WHITE8X8")
-    headerBg:SetGradient("VERTICAL", CreateColor(0.60, 0.45, 0.24, 1), CreateColor(0.82, 0.67, 0.42, 1))
 
     local headerBrush = band:CreateTexture(nil, "BACKGROUND", nil, 1)
     headerBrush:SetAllPoints()
@@ -1736,6 +1802,7 @@ local function Maines_DressBrassBand(band)
     headerBrush:SetVertTile(true)
     headerBrush:SetVertexColor(0.36, 0.22, 0.07)
     headerBrush:SetAlpha(0.38)
+    Maines_RegisterSurface(headerBrush, "metal", {0.36, 0.22, 0.07})
 
     local headerGrain = band:CreateTexture(nil, "BACKGROUND", nil, 2)
     headerGrain:SetAllPoints()
@@ -1744,20 +1811,44 @@ local function Maines_DressBrassBand(band)
     headerGrain:SetVertTile(true)
     headerGrain:SetVertexColor(0.30, 0.18, 0.06)
     headerGrain:SetAlpha(0.22)
+    Maines_RegisterSurface(headerGrain, "paper", {0.30, 0.18, 0.06})
 
+    local shades = {}
     for _, side in ipairs({"LEFT", "RIGHT"}) do
         local shade = band:CreateTexture(nil, "BACKGROUND", nil, 3)
         shade:SetTexture("Interface\\Buttons\\WHITE8X8")
         shade:SetPoint("TOP" .. side)
         shade:SetPoint("BOTTOM" .. side)
         shade:SetWidth(160)
-        local dark, clear = CreateColor(0.18, 0.09, 0.02, 0.30), CreateColor(0.18, 0.09, 0.02, 0)
-        if side == "LEFT" then
-            shade:SetGradient("HORIZONTAL", dark, clear)
+        shade.side = side
+        shades[#shades + 1] = shade
+    end
+
+    -- nil = the start brass; otherwise the palette color it is toned toward
+    local function paint(r, g, b)
+        local lr, lg, lb, hr, hg, hb, sr, sg, sb
+        if r then
+            lr, lg, lb = Maines_ToneLike(BAND_LOW, r, g, b, BAND_BLEND)
+            hr, hg, hb = Maines_ToneLike(BAND_HIGH, r, g, b, BAND_BLEND)
+            sr, sg, sb = Maines_ToneLike(BAND_SHADE, r * 0.3, g * 0.3, b * 0.3, BAND_BLEND)
         else
-            shade:SetGradient("HORIZONTAL", clear, dark)
+            lr, lg, lb = BAND_LOW[1], BAND_LOW[2], BAND_LOW[3]
+            hr, hg, hb = BAND_HIGH[1], BAND_HIGH[2], BAND_HIGH[3]
+            sr, sg, sb = BAND_SHADE[1], BAND_SHADE[2], BAND_SHADE[3]
+        end
+        headerBg:SetGradient("VERTICAL", CreateColor(lr, lg, lb, 1), CreateColor(hr, hg, hb, 1))
+        band.toneLow, band.toneHigh = {lr, lg, lb}, {hr, hg, hb}
+        for _, shade in ipairs(shades) do
+            local dark, clear = CreateColor(sr, sg, sb, 0.30), CreateColor(sr, sg, sb, 0)
+            if shade.side == "LEFT" then
+                shade:SetGradient("HORIZONTAL", dark, clear)
+            else
+                shade:SetGradient("HORIZONTAL", clear, dark)
+            end
         end
     end
+    paint()
+    table.insert(Maines_Textures, {repaint = paint})
 
     local headerShine = band:CreateTexture(nil, "ARTWORK")
     headerShine:SetTexture("Interface\\Buttons\\WHITE8X8")
@@ -1941,6 +2032,9 @@ ns.MakeButton = Maines_MakeButton
 ns.MakeHeading = Maines_MakeHeading
 ns.MakeFlatBackdrop = Maines_MakeFlatBackdrop
 ns.RegisterTexture = Maines_RegisterTexture
+ns.Palettes = Color_Palettes
+ns.ApplyPaletteColor = Maines_ApplyPaletteColor
+ns.ActivePalette = function() return Maines_ActivePalette end
 ns.Fonts = {
     Title = Maines_Font_Title, Header = Maines_Font_Header, Body = Maines_Font_Body,
     BodySmall = Maines_Font_BodySmall, Button = Maines_Font_Button,
