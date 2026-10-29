@@ -18,8 +18,11 @@ local OUT = os.getenv("MAINES_RENDER_OUT") or "render_ui.json"
 -- ---------------------------------------------------------------- fonts + text metrics
 local function fontKey(path)
     local p = tostring(path or ""):lower()
-    if p:find("agave%-bold") then return "agave_bold" end
-    if p:find("agave") then return "agave_regular" end
+    if p:find("newrocker") then return "newrocker" end
+    if p:find("vollkornsc") then return "vollkornsc" end
+    if p:find("firasans%-semibold") then return "fira_semibold" end
+    if p:find("firasans") then return "fira_medium" end
+    if p:find("breeserif") then return "breeserif" end
     if p:find("morpheus") then return "morpheus" end
     if p:find("arialn") then return "arialn" end
     return "friz"

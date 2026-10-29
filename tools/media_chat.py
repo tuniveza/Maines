@@ -24,8 +24,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "docs", "media")
 LIB_SANS = "/usr/share/fonts/liberation/LiberationSans-Regular.ttf"
 NARROW_FONT = os.path.join(ROOT, "tools", "fonts", "LiberationSansNarrow-Regular.ttf")
-AGAVE_BOLD = os.path.join(ROOT, "fonts", "agave", "Agave-Bold.ttf")
-AGAVE = os.path.join(ROOT, "fonts", "agave", "Agave-Regular.ttf")
+UI_BOLD = os.path.join(ROOT, "fonts", "firasans", "FiraSans-SemiBold.ttf")    # labels
+UI_BUTTON = os.path.join(ROOT, "fonts", "breeserif", "BreeSerif-Regular.ttf")  # buttons, keys
+UI_BODY = os.path.join(ROOT, "fonts", "firasans", "FiraSans-Medium.ttf")       # body text
 NBSP = " "
 
 S = 2                 # render scale: every pixel size below is a 1x size times S (README art at 2x)
@@ -65,9 +66,9 @@ def chat_font(px=CHAT_PX):
     return _FONTS[px]
 
 
-def agave(size, bold=False):
-    """Agave at a 1x point size, rendered at S times that."""
-    return ImageFont.truetype(AGAVE_BOLD if bold else AGAVE, size * S)
+def ui_font(size, bold=False, button=False):
+    """The add-on's own UI fonts at a 1x point size, rendered at S times that."""
+    return ImageFont.truetype(UI_BUTTON if button else (UI_BOLD if bold else UI_BODY), size * S)
 
 
 def unescape(s):
@@ -187,7 +188,7 @@ def plate(draw, box, radius=6 * S):
 
 def keycap(img, x, y, label, pressed):
     d = ImageDraw.Draw(img)
-    f = agave(13, bold=True)
+    f = ui_font(13, button=True)
     w = int(f.getlength(label)) + 18 * S
     off = 2 * S if pressed else 0
     if not pressed:
@@ -328,14 +329,14 @@ def caption_maker(title, sub, frames=None, current=None):
     def draw(img):
         d = ImageDraw.Draw(img)
         plate(d, (16 * S, 10 * S, 744 * S, 50 * S))
-        fb = agave(15, bold=True)
-        fs = agave(11)
+        fb = ui_font(15, bold=True)
+        fs = ui_font(11)
         d.text((30 * S, 13 * S), title, font=fb, fill=PLATE_TEXT + (255,))
         d.text((30 * S, 32 * S), sub, font=fs, fill=PLATE_TEXT_SOFT + (255,))
         left_end = 30 * S + max(fb.getlength(title), fs.getlength(sub)) + 20 * S
         right = (744 - 12) * S
         if frames:
-            ff = agave(13, bold=True)
+            ff = ui_font(13, bold=True)
             n = len(frames)
             while True:
                 shown = frames[:n]
@@ -414,7 +415,7 @@ def make_phrases(data):
             # the keys, on the right of the caption plate (Ctrl-1 is an example binding)
             y = 15 * S
             x = keycap(img, 548 * S, y, "Ctrl", pressed and label == "CTRL-1")
-            ImageDraw.Draw(img).text((x + 5 * S, y + 5 * S), "+", font=agave(13, bold=True),
+            ImageDraw.Draw(img).text((x + 5 * S, y + 5 * S), "+", font=ui_font(13, button=True),
                                      fill=PLATE_TEXT + (255,))
             x = keycap(img, x + 18 * S, y, "1", pressed and label == "CTRL-1")
             keycap(img, x + 22 * S, y, "Enter", pressed and label == "ENTER")
@@ -462,8 +463,8 @@ def make_badges_png(data):
     H = sum(row_h) + (rows + 1) * pad
     img = backdrop(W, H, seed=3).convert("RGBA")
     d = ImageDraw.Draw(img)
-    fb = agave(14, bold=True)
-    fs = agave(12)
+    fb = ui_font(14, bold=True)
+    fs = ui_font(12)
     y = pad
     for r in range(rows):
         for c in range(cols):

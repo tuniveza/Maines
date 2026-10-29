@@ -25,12 +25,16 @@ OUT_DIR = os.path.join(ROOT, "docs", "media")
 S = 2            # pixels per UI unit (render at 2x for crispness)
 MARGIN = 40      # UI units of backdrop around the window
 
-# Font stand-ins. Agave is the add-on's own bundled font (exact). MORPHEUS.TTF, ARIALN.TTF and
-# FRIZQT__.TTF ship with the WoW client, which is not on this PC: open look-alikes are used.
+# Fonts. The first five are the add-on's own bundled fonts (fonts/, exact). MORPHEUS.TTF,
+# ARIALN.TTF and FRIZQT__.TTF ship with the WoW client, which is not on this PC: open
+# look-alikes are used.
 LIB_SANS = "/usr/share/fonts/liberation/LiberationSans-Regular.ttf"
 FONTS = {
-    "agave_regular": {"path": os.path.join(ROOT, "fonts/agave/Agave-Regular.ttf")},
-    "agave_bold": {"path": os.path.join(ROOT, "fonts/agave/Agave-Bold.ttf")},
+    "newrocker": {"path": os.path.join(ROOT, "fonts/newrocker/NewRocker-Regular.ttf")},
+    "vollkornsc": {"path": os.path.join(ROOT, "fonts/vollkornsc/VollkornSC-Bold.ttf")},
+    "fira_semibold": {"path": os.path.join(ROOT, "fonts/firasans/FiraSans-SemiBold.ttf")},
+    "fira_medium": {"path": os.path.join(ROOT, "fonts/firasans/FiraSans-Medium.ttf")},
+    "breeserif": {"path": os.path.join(ROOT, "fonts/breeserif/BreeSerif-Regular.ttf")},
     # WoW's engraved quest-title face -> Cinzel (OFL, tools/fonts/)
     "morpheus": {"path": os.path.join(ROOT, "tools/fonts/Cinzel.ttf"), "variation": b"Bold"},
     # Arial Narrow -> Liberation Sans Narrow (same glyph widths; tools/fonts/, GPLv2 + font exception)
@@ -496,7 +500,7 @@ def caption_strip(rgb, text, h_units=26):
     out = np.concatenate([rgb, strip], axis=0)
     im = to_image(out)
     d = ImageDraw.Draw(im)
-    f = font("agave_regular", 13 * S)
+    f = font("fira_medium", 13 * S)
     tw = f.getlength(text)
     d.text(((W - tw) / 2, H + 2 * S), text, font=f, fill=(222, 206, 170))
     return np.asarray(im, np.float32) / 255.0

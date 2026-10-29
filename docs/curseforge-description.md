@@ -91,4 +91,4 @@ Made by **Zuniversa / Tuniveza**, EU Silvermoon. Say hi in game: you'll know it'
 
 Found a bug or have an idea? [Tell me on GitHub](https://github.com/tuniveza/Maines/issues).
 
-<sub>Font: Agave (SIL Open Font License) · Libraries: Ace3, LibDBIcon</sub>
+<sub>Fonts: New Rocker, Vollkorn SC, Fira Sans, Bree Serif (SIL Open Font License) · Libraries: Ace3, LibDBIcon</sub>
