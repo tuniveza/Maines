@@ -680,7 +680,7 @@ end
 for i, palette in ipairs(ns.Palettes) do
     local hex = palette.colors[1]
     local r, g, b = tonumber(hex:sub(1, 2), 16) / 255, tonumber(hex:sub(3, 4), 16) / 255, tonumber(hex:sub(5, 6), 16) / 255
-    ns.ApplyPaletteColor(r, g, b, nil, palette.name)
+    ns.ApplyPaletteColor(r, g, b, hex, palette.name)
     snapshot("sheet_" .. i, Maines_Frame, { caption = palette.name .. "  #" .. hex })
 end
 
