@@ -509,6 +509,7 @@ local function DarkPlate(frame)
     frame:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1})
     frame:SetBackdropColor(C.PLATE_BG[1], C.PLATE_BG[2], C.PLATE_BG[3], 1)
     frame:SetBackdropBorderColor(C.BORDER_DARK[1], C.BORDER_DARK[2], C.BORDER_DARK[3], 1)
+    ns.TonePlateBackdrop(frame) -- follows /maincolor, keeping the walnut's brightness
     local shade = frame:CreateTexture(nil, "BACKGROUND", nil, 2)
     shade:SetPoint("TOPLEFT", 1, -1)
     shade:SetPoint("BOTTOMRIGHT", -1, 1)

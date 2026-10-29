@@ -651,6 +651,11 @@ slash("/mainnote")
 snapshot("note", Maines_NoteFrame)
 Maines_NoteFrame:Hide()
 
+-- The /mainhelp window (only kept with MAINES_PALETTE_FRAMES, to check its frame border).
+slash("/mainhelp")
+snapshot("helpwin", Maines_Help_Frame)
+Maines_Help_Frame:Hide()
+
 -- /maincolor rolls on the main page, each repainting the whole UI with the add-on's own code.
 slash("/maines")
 ns.ShowPanel("main")

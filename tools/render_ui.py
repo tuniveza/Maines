@@ -176,7 +176,15 @@ def draw_texture(cv, item):
             return
         th, tw = src.shape[:2]
         tc = item.get("texcoord")
-        if tc:
+        if tc and (min(tc) < -1e-6 or max(tc) > 1 + 1e-6):
+            # coordinates past 0..1 with wrap mode REPEAT: the texture repeats (the frame strips)
+            l, r, t, b = tc
+            ox, oy = math.floor(min(l, r)), math.floor(min(t, b))
+            reps_x, reps_y = math.ceil(max(l, r)) - ox, math.ceil(max(t, b)) - oy
+            big = np.tile(src, (reps_y, reps_x, 1))
+            src = big[int(round((t - oy) * th)):int(round((b - oy) * th)),
+                      int(round((l - ox) * tw)):int(round((r - ox) * tw))]
+        elif tc:
             l, r, t, b = tc
             src = src[int(round(t * th)):max(int(round(t * th)) + 1, int(round(b * th))),
                       int(round(l * tw)):max(int(round(l * tw)) + 1, int(round(r * tw)))]
@@ -542,6 +550,10 @@ def main():
     note = scenes["note"]
     to_image(render_scene(note, crop_for(note))).save(os.path.join(OUT_DIR, "note.png"), optimize=True)
     print("wrote docs/media/note.png")
+    if os.environ.get("MAINES_PALETTE_FRAMES") and "helpwin" in scenes:
+        keep = os.environ["MAINES_PALETTE_FRAMES"]
+        os.makedirs(keep, exist_ok=True)
+        to_image(render_scene(scenes["helpwin"], crop_for(scenes["helpwin"]))).save(os.path.join(keep, "help-window.png"))
 
     # tour: empty backdrop, the window's 0.18 s fade-in (smoothing OUT), then each page ~2 s
     empty = render_scene({"items": []}, crop)
