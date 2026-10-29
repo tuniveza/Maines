@@ -2485,7 +2485,7 @@ do
     creditsLine1:SetFontObject(Maines_Font_BodySmall)
     creditsLine1:SetPoint("BOTTOM", footerBar, "CENTER", 0, 1)
     creditsLine1:SetJustifyH("CENTER")
-    creditsLine1:SetText("Designed by Dominic Hughes / Zuniversa / Tuniveza  -  Silvermoon EU, Universe of Warcraft")
+    creditsLine1:SetText("Designed by Dominic Hughes / Tuniveza  -  Silvermoon EU, Universe of Warcraft")
     creditsLine1:SetTextColor(PLATE_TEXT[1], PLATE_TEXT[2], PLATE_TEXT[3])
 
     -- Shifted right by half the stamp's width (+ gap) so stamp and text together stay centered.
