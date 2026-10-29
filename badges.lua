@@ -592,6 +592,7 @@ local nameBox = CreateFrame("EditBox", nil, panel, "InputBoxTemplate")
 nameBox:SetSize(140, 20)
 nameBox:SetPoint("TOPLEFT", rowX + 50, y)
 nameBox:SetAutoFocus(false)
+nameBox:SetJustifyH("CENTER")
 nameBox:SetMaxLetters(24)
 nameBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
 

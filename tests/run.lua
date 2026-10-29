@@ -536,6 +536,23 @@ test("13. author's note: pops up once after login for a new release, /mainnote r
     ok(note:GetHeight() > 300, "laid out to its text (" .. note:GetHeight() .. "px)")
 end)
 
+test("14. single-line input boxes centre their text; the badge drawing box stays left-aligned", function()
+    local boxes, centred = 0, 0
+    for _, o in ipairs(mock.objects) do
+        if o._type == "EditBox" and o._template and o._template:find("InputBoxTemplate", 1, true) then
+            boxes = boxes + 1
+            local j = o._set.SetJustifyH and o._set.SetJustifyH[1]
+            ok(j == "CENTER", (o:GetDebugName() or "input box") .. " is centred (got " .. tostring(j) .. ")")
+            centred = centred + 1
+        elseif o._type == "EditBox" and o._multiLine and o._parent and o._parent._type == "ScrollFrame" then
+            local j = o._set.SetJustifyH and o._set.SetJustifyH[1]
+            ok(j == nil or j == "LEFT", "multi-line drawing box keeps its rows left-aligned")
+        end
+    end
+    ok(boxes >= 5, "found the input boxes (" .. boxes .. ")")
+    note("(" .. centred .. " input boxes centred)")
+end)
+
 -- ---------------------------------------------------------------- summary
 local function sortedKeys(t) local k = {}; for n in pairs(t) do k[#k + 1] = n end; table.sort(k); return k end
 out(("== %d passed, %d failed"):format(passed, failed))

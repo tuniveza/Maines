@@ -543,7 +543,9 @@ local function walk(o, info)
             if (o._text or "") ~= "" then
                 local fakeFS = { _text = o._text, _set = o._set, _font = o._font, _fontObject = o._fontObject }
                 local multi = o._multiLine
-                local item = textItem(fakeFS, r, { justifyH = "LEFT", justifyV = multi and "TOP" or "MIDDLE",
+                -- edit boxes start left-aligned in WoW unless SetJustifyH says otherwise
+                local jh = o._set.SetJustifyH and o._set.SetJustifyH[1] or "LEFT"
+                local item = textItem(fakeFS, r, { justifyH = jh, justifyV = multi and "TOP" or "MIDDLE",
                     wrap = multi and true or false })
                 if not multi then item.truncate = false; item.cliptobox = true end
                 emit(item, fi, "OVERLAY", 0, 0)

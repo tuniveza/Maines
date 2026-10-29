@@ -264,6 +264,7 @@ local input = CreateFrame("EditBox", nil, panel, "InputBoxTemplate")
 input:SetSize(360, 22)
 input:SetPoint("TOP", -50, y)
 input:SetAutoFocus(false)
+input:SetJustifyH("CENTER")
 input:SetMaxLetters(MAX_PHRASE_LETTERS)
 
 local addBtn = ns.MakeButton(panel, 90, 24, "Add")

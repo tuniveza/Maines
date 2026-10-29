@@ -1968,6 +1968,7 @@ my = my - nameLabel:GetStringHeight() - 6
 local nameBox = CreateFrame("EditBox", nil, mainPanel, "InputBoxTemplate")
 nameBox:SetSize(220, 20)
 nameBox:SetAutoFocus(false)
+nameBox:SetJustifyH("CENTER")
 nameBox:SetMaxLetters(24)
 nameBox:SetPoint("TOP", 0, my)
 my = my - 30
@@ -2044,12 +2045,14 @@ customLabel:SetTextColor(INK[1], INK[2], INK[3])
 customLeft = CreateFrame("EditBox", nil, mainPanel, "InputBoxTemplate")
 customLeft:SetSize(50, 20)
 customLeft:SetAutoFocus(false)
+customLeft:SetJustifyH("CENTER")
 -- Centered as a unit with customRight (combined width 50 + 20 gap + 50 = 120), not left-hung.
 local CUSTOM_PAIR_WIDTH = 120
 
 customRight = CreateFrame("EditBox", nil, mainPanel, "InputBoxTemplate")
 customRight:SetSize(50, 20)
 customRight:SetAutoFocus(false)
+customRight:SetJustifyH("CENTER")
 customRight:SetPoint("LEFT", customLeft, "RIGHT", 20, 0)
 
 local previewLabel = mainPanel:CreateFontString(nil, "OVERLAY")
