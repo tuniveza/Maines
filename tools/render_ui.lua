@@ -664,6 +664,15 @@ for roll = 1, 6 do
     snapshot("palette_" .. roll, Maines_Frame, { caption = msg })
 end
 
+-- A contact sheet: every palette once, painted with its first (dominant) color, so each
+-- palette's own surface textures and title band can be compared side by side.
+for i, palette in ipairs(ns.Palettes) do
+    local hex = palette.colors[1]
+    local r, g, b = tonumber(hex:sub(1, 2), 16) / 255, tonumber(hex:sub(3, 4), 16) / 255, tonumber(hex:sub(5, 6), 16) / 255
+    ns.ApplyPaletteColor(r, g, b, nil, palette.name)
+    snapshot("sheet_" .. i, Maines_Frame, { caption = palette.name .. "  #" .. hex })
+end
+
 -- ---------------------------------------------------------------- JSON out
 local function encode(v, out)
     local t = type(v)
