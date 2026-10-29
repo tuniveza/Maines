@@ -1,4 +1,4 @@
-![Maines](https://raw.githubusercontent.com/tuniveza/Maines/GLYPH.2/docs/media/banner.png)
+![Maines](https://raw.githubusercontent.com/tuniveza/Maines/GLYPH.RENOVATION/docs/media/banner.png)
 
 ## Playing an alt? Let your friends know it's you.
 
@@ -23,7 +23,7 @@ That's it. Your tag appears on every message.
 
 On your main, Maines stays quiet, because everyone already knows it's you.
 
-![Your tag in chat, changing a little with every message](https://raw.githubusercontent.com/tuniveza/Maines/GLYPH.2/docs/media/tag-anim.gif)
+![Your tag in chat, changing a little with every message](https://raw.githubusercontent.com/tuniveza/Maines/GLYPH.RENOVATION/docs/media/tag-anim.gif)
 
 ---
 
@@ -47,7 +47,7 @@ Tag guild, party, raid, whispers, communities and more. Turn off any you don't w
 **🎨 Paint the window**
 Repaint the settings window with colours from famous paintings, or from Gnomeregan and Undermine. Each one brings its own texture and frame, and Maines remembers your pick.
 
-![The ten Textual Badges](https://raw.githubusercontent.com/tuniveza/Maines/GLYPH.2/docs/media/badges.png)
+![The ten Textual Badges](https://raw.githubusercontent.com/tuniveza/Maines/GLYPH.RENOVATION/docs/media/badges.png)
 
 ---
 
@@ -57,7 +57,7 @@ Type `/maines`, or click the brass **M** on your minimap.
 
 Everything can be done from the settings window.
 
-![The Maines settings window](https://raw.githubusercontent.com/tuniveza/Maines/GLYPH.2/docs/media/window-main.png)
+![The Maines settings window](https://raw.githubusercontent.com/tuniveza/Maines/GLYPH.RENOVATION/docs/media/window-main.png)
 
 ---
 

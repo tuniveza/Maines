@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/tuniveza/Maines/releases/latest"><img src="https://img.shields.io/badge/stamp-GLYPH.2-8B5E3C" alt="Current stamp: GLYPH.2"></a>
+  <a href="https://github.com/tuniveza/Maines/releases/latest"><img src="https://img.shields.io/badge/stamp-GLYPH.RENOVATION-8B5E3C" alt="Current stamp: GLYPH.RENOVATION"></a>
   <img src="https://img.shields.io/badge/WoW-12.1.5%20(Midnight)-3E6E96" alt="WoW 12.1.5 (Midnight)">
   <a href="https://www.curseforge.com/wow/addons/maines"><img src="https://img.shields.io/badge/CurseForge-Maines-F16436" alt="Maines on CurseForge"></a>
   <img src="https://img.shields.io/badge/built%20on-Ace3-C9A227" alt="Built on Ace3">
@@ -51,7 +51,7 @@ Every Maines release gets a name instead of a version number, stamped like a sea
 </tr>
 <tr>
 <td>🔩 <strong>A new coat of brass</strong></td>
-<td>Painted WoW-style icons, thicker fonts, and a textured frame for every palette (renovated in GLYPH.2).</td>
+<td>Painted WoW-style icons, thicker fonts, and a textured frame for every palette (renovated in GLYPH.RENOVATION).</td>
 </tr>
 </tbody>
 </table>
@@ -63,7 +63,7 @@ Full notes for every stamp: [CHANGELOG.md](CHANGELOG.md).
 **CurseForge app:** search for **Maines** and press Install.
 
 **By hand:**
-1. Download `Maines-GLYPH.2.zip` from the [Releases page](https://github.com/tuniveza/Maines/releases/latest).
+1. Download `Maines-GLYPH.RENOVATION.zip` from the [Releases page](https://github.com/tuniveza/Maines/releases/latest).
 2. Unzip it into `World of Warcraft/_retail_/Interface/AddOns/`.
 3. You should now have a folder called `AddOns/Maines`.
 
@@ -298,7 +298,7 @@ Valid names: `SAY`, `YELL`, `EMOTE`, `PARTY`, `PARTY_LEADER`, `RAID`, `RAID_LEAD
 
 - **Tests:** `tests/run.sh` runs Maines offline under Lua 5.1 against a mocked WoW API (`tests/wowmock.lua`).
 - **Pictures:** `tools/` rebuilds the icons, textures and the README media from the real UI code.
-- **Releasing:** push an annotated tag named after the stamp (`git tag -a GLYPH -m GLYPH && git push origin GLYPH`).
+- **Releasing:** push an annotated tag named after the stamp (`git tag -a GLYPH -m GLYPH && git push origin GLYPH`). Revisions of a stamp add a word, not a number: `GLYPH.RENOVATION`.
   [BigWigsMods/packager](https://github.com/BigWigsMods/packager) (`.github/workflows/release.yml`) builds
   `Maines-<stamp>.zip` using `.pkgmeta`, publishes the GitHub release and uploads to CurseForge.
   Player-facing notes come from `CHANGELOG.md`; the CurseForge page text lives in `docs/curseforge-description.md`.

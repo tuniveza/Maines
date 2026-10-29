@@ -1,4 +1,4 @@
-# GLYPH.2
+# GLYPH.RENOVATION
 
 Another small revision of GLYPH: the window gets a proper renovation.
 
