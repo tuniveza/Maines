@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/tuniveza/Maines/releases/latest"><img src="https://img.shields.io/badge/stamp-GLYPH.1-8B5E3C" alt="Current stamp: GLYPH.1"></a>
+  <a href="https://github.com/tuniveza/Maines/releases/latest"><img src="https://img.shields.io/badge/stamp-GLYPH.2-8B5E3C" alt="Current stamp: GLYPH.2"></a>
   <img src="https://img.shields.io/badge/WoW-12.1.5%20(Midnight)-3E6E96" alt="WoW 12.1.5 (Midnight)">
   <a href="https://www.curseforge.com/wow/addons/maines"><img src="https://img.shields.io/badge/CurseForge-Maines-F16436" alt="Maines on CurseForge"></a>
   <img src="https://img.shields.io/badge/built%20on-Ace3-C9A227" alt="Built on Ace3">
@@ -51,7 +51,7 @@ Every Maines release gets a name instead of a version number, stamped like a sea
 </tr>
 <tr>
 <td>🔩 <strong>A new coat of brass</strong></td>
-<td>Painted WoW-style icons, thicker fonts, and a textured frame for every palette (new in GLYPH.1).</td>
+<td>Painted WoW-style icons, thicker fonts, and a textured frame for every palette (renovated in GLYPH.2).</td>
 </tr>
 </tbody>
 </table>
@@ -63,7 +63,7 @@ Full notes for every stamp: [CHANGELOG.md](CHANGELOG.md).
 **CurseForge app:** search for **Maines** and press Install.
 
 **By hand:**
-1. Download `Maines-GLYPH.1.zip` from the [Releases page](https://github.com/tuniveza/Maines/releases/latest).
+1. Download `Maines-GLYPH.2.zip` from the [Releases page](https://github.com/tuniveza/Maines/releases/latest).
 2. Unzip it into `World of Warcraft/_retail_/Interface/AddOns/`.
 3. You should now have a folder called `AddOns/Maines`.
 
@@ -104,7 +104,8 @@ Every page of the window does exactly what the slash commands do. Use whichever 
   </tr>
 </table>
 
-<sub>Window pictures are rendered offline from the addon's real UI code (its own layout, colours, textures and font), not captured in game.</sub>
+<sub>Window pictures are rendered offline from the addon's real UI code (its own layout, colours, textures and font), not captured in game.<br>
+The icons, textures and frames were made with generative assistance (the generators are in <code>tools/</code>); they were not hand-drawn.</sub>
 
 <h2 align="center">Saved phrases</h2>
 

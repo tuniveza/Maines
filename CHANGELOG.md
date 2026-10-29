@@ -1,10 +1,41 @@
+# GLYPH.2
+
+Another small revision of GLYPH: the window gets a proper renovation.
+
+### Changed
+
+- **Bigger, thicker text.** Every page uses medium-sized, heavier text, with even spacing and margins throughout. The window is a little larger to fit it.
+- **New buttons.** Bigger, bevelled buttons with clear hover and pressed looks, in a bold font. The text boxes use the same bold font.
+- **Maines' own close button** instead of WoW's red X. Escape still closes the window.
+- **A status line.** What Maines tells you in chat (like your new bracket) now also shows in colour at the bottom of the window.
+- **Matching frames.** Each palette's border is now made of the same material as the title bar, and a soft sheen lies over the whole window.
+- **Textured bars.** The tab bar, status line and footer take the palette's colour and texture instead of plain dark bars.
+- **Sharper icons.** The tab icons are bigger, high-resolution and drawn without a dark box behind them.
+- The subtitle under the title is gone, and the footer text is centred.
+
+### Fixed
+
+- The minimap button showed a dark gap inside its gold ring. The logo now fills it.
+
+*Yo, I went back and gave Maines a flavourful renovation; it looks more cohesive and consistent.*
+
+*This is still ; hehe*
+
+*Not the Final Look By A Long Stretch.*
+
+*Moving on from that; hope it looks more pleasantry.*
+
+*See you for the next revision or major update.*
+
+*This was generatively assisted; it was not hand-drawn by me.*
+
 # GLYPH.1
 
 A small revision of GLYPH: mostly a fresh coat of paint.
 
 ### Changed
 
-- **New icons.** Every tab has a new hand-made icon in a painted, square style. The tab you're on shows in full colour.
+- **New icons.** Every tab has a new icon in a painted, square style. The tab you're on shows in full colour.
 - **New fonts.** Thicker, easier-to-read text, with a different font for titles, headings, text and buttons.
 - **Palettes go further.** Each `/maincolor` palette now has its own paper texture and its own window border, and it also colours the title bar, the tab bar and the footer.
 - **Your palette is remembered.** The palette you pick now stays after a `/reload` or the next login.
@@ -30,7 +61,7 @@ Updated for WoW 12.1.5.
 
 ### Changed
 
-- **New look.** The window keeps its brass-and-parchment colors, now with soft gradients, paper and brushed-brass textures, bevelled buttons, a row of tabs, a soft glow and its own hand-made icons. It's not the final look by a long stretch: just a nice make-over to keep it fun and interesting until I can sit down and properly update it, like in the early versions.
+- **New look.** The window keeps its brass-and-parchment colors, now with soft gradients, paper and brushed-brass textures, bevelled buttons, a row of tabs, a soft glow and its own icons. It's not the final look by a long stretch: just a nice make-over to keep it fun and interesting until I can sit down and properly update it, like in the early versions.
 - **Calmer motion.** The gears and minimap icon no longer spin all the time. The minimap icon turns once when you point at it, and the window fades in when it opens.
 
 # MOSAIC

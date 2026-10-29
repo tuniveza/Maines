@@ -3156,7 +3156,7 @@ local NOTE_NEW = {
     "Saved phrases on a shortcut key (Phrases page)",
     "An animated tag that changes with each message (Animate page)",
     "Textual Badges: whole text pictures sent to chat (Badges page)",
-    "A new hand-made look, with its own icons - not the final look by a long stretch, but a nice "
+    "A new look, with its own icons - not the final look by a long stretch, but a nice "
         .. "make-over to keep it fun and interesting till I can sit down and properly update it full on, "
         .. "like I did in the early versions",
 }
