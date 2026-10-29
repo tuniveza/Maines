@@ -1,41 +1,94 @@
-**Take your main name to the chat frame, then gtfo.**
+![Maines](https://raw.githubusercontent.com/tuniveza/Maines/3bb24fc/docs/media/banner.png)
 
-Playing an alt? Maines puts your main's name in front of what you say, so your guild always knows who's talking.
+## Playing an alt? Let your friends know it's you.
+
+Maines puts your main character's name in front of everything you say in chat.
+
+Your guild sees who is really talking, whichever character you're on.
 
 ```
-(tuniveza) anyone up for a key?
+[Guild] [Linenseller]: [Misamu] anyone up for a key?
 ```
 
-## Quick start
-
-1. Type `/mains tuniveza (`
-2. Chat as normal.
-
-That's it. Type `/maines` for everything else.
-
-## Features
-
-- **Your brackets, your way:** ( ) [ ] < > { } or any symbols you like.
-- **Alts only** by default, so your main stays clean.
-- **Pick your channels:** guild, party, raid, whispers and more.
-- **Saved phrases** on a shortcut key: press it to drop your next phrase into chat.
-- **Animated tag** that changes a little with every message.
-- **Textual Badges:** send a whole text picture to chat (heart, sword, 3D cube and more, or draw your own). One every 3 minutes.
-- **Settings window and minimap button** for when you don't want to type commands.
-- **Art palettes:** recolor the window with colors from paintings like Starry Night and The Great Wave.
-
-## Commands
-
-| Command | What it does |
-|---|---|
-| `/mains <name> <bracket>` | Set your main name and brackets |
-| `/maines` | Open the settings window |
-| `/mainchat` | Choose which channels get tagged |
-| `/mainphrase` | Save phrases for your shortcut key |
-| `/mainanim` | Animate your tag |
-| `/mainbadge` | List or send Textual Badges |
-| `/mainhelp` | Every command, in game |
+No more "who is this?" in guild chat.
 
 ---
 
-Font: [Agave](https://github.com/blobject/agave) (OFL 1.1) · Libraries: Ace3, LibDBIcon · Source and issues: [GitHub](https://github.com/tuniveza/Maines)
+## Set it up in 10 seconds
+
+1. Type `/mains YourMainName [`
+2. Log in on an alt and chat as normal.
+
+That's it. Your tag appears on every message.
+
+On your main, Maines stays quiet, because everyone already knows it's you.
+
+![Your tag in chat, changing a little with every message](https://raw.githubusercontent.com/tuniveza/Maines/3bb24fc/docs/media/tag-anim.gif)
+
+---
+
+## What you get
+
+**🏷️ Your name, your style**
+Pick a bracket: `[Misamu]` `(Misamu)` `<Misamu>` `{Misamu}`, or any symbol you like.
+
+**✨ A tag that moves**
+Your tag can change with each message. It can type itself out, roll a capital letter through your name, or twinkle.
+
+**💬 Saved phrases on one key**
+Keep the things you say every night, like *"ty for the group!"*. Press your key and the phrase appears in the chat box. You still press Enter to send.
+
+**🛡️ Textual Badges**
+Send a whole picture made of text: a heart, a sword, a crown, a murloc and more. You can also draw your own. You can send one every 3 minutes.
+
+**📻 Choose your channels**
+Tag guild, party, raid, whispers, communities and more. Turn off any you don't want.
+
+**🎨 Paint the window**
+Repaint the settings window with colours from famous paintings, or from Gnomeregan and Undermine.
+
+![The ten Textual Badges](https://raw.githubusercontent.com/tuniveza/Maines/3bb24fc/docs/media/badges.png)
+
+---
+
+## Prefer buttons to commands?
+
+Type `/maines`, or click the brass **M** on your minimap.
+
+Everything can be done from the settings window.
+
+![The Maines settings window](https://raw.githubusercontent.com/tuniveza/Maines/3bb24fc/docs/media/window-main.png)
+
+---
+
+## Handy commands
+
+| Type this | To do this |
+|---|---|
+| `/mains Name [` | Set your main's name and bracket |
+| `/maines` | Open the settings window |
+| `/mainphrase add <text>` | Save a phrase |
+| `/mainanim` | Make your tag move |
+| `/mainbadge` | See and send badges |
+| `/mainhelp` | See every command, with examples |
+
+---
+
+## Questions
+
+**Does it work on my main?**
+It stays quiet there by default. Type `/mainshow` if you want the tag on your main too.
+
+**My tag isn't showing.**
+Type `/main` to check your name is set. Then type `/mainchat` to make sure every channel is tagged again.
+
+**Does it send messages for me?**
+Never. Maines only adds your tag to messages you send yourself.
+
+---
+
+Made by **Misamu**, EU Silvermoon. Say hi in game: you'll know it's me.
+
+Found a bug or have an idea? [Tell me on GitHub](https://github.com/tuniveza/Maines/issues).
+
+<sub>Font: Agave (SIL Open Font License) · Libraries: Ace3, LibDBIcon</sub>
