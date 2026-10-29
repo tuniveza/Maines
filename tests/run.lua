@@ -536,6 +536,34 @@ test("13. author's note: pops up once after login for a new release, /mainnote r
     ok(note:GetHeight() > 300, "laid out to its text (" .. note:GetHeight() .. "px)")
 end)
 
+test("14. the full-colour icons are never tinted: tabs dim instead, /maincolor leaves them alone", function()
+    slash("/maines"); ns.ShowPanel("main")
+    for _ = 1, 3 do slash("/maincolor") end
+    local tabs = 0
+    for _, o in ipairs(mock.objects) do
+        local t = o._texture
+        if type(t) == "string" and t:find("\\icons\\", 1, true) then
+            tabs = tabs + 1
+            local vc = o._set.SetVertexColor
+            if vc then
+                ok(vc[1] == 1 and vc[2] == 1 and vc[3] == 1,
+                    t .. " tinted to " .. q(vc[1]) .. "," .. q(vc[2]) .. "," .. q(vc[3]))
+            end
+            local btn = o._parent
+            if btn and btn.SetSelected then
+                local want = btn.selected and 1 or 0.72
+                ok(math.abs((o._alpha or 1) - want) < 1e-6, t .. " alpha " .. q(o._alpha) .. ", want " .. want)
+            end
+        end
+    end
+    ok(tabs >= 8, "expected the 8 tab icons, saw " .. tabs)
+    for _, line in ipairs(mock.printed) do
+        for spec in line:gmatch("|T(Interface\\AddOns\\Maines\\textures\\icons\\[^|]+)|t") do
+            ok(select(2, spec:gsub(":", "")) <= 2, "inline icon carries a tint: " .. spec)
+        end
+    end
+end)
+
 -- ---------------------------------------------------------------- summary
 local function sortedKeys(t) local k = {}; for n in pairs(t) do k[#k + 1] = n end; table.sort(k); return k end
 out(("== %d passed, %d failed"):format(passed, failed))

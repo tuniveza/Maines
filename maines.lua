@@ -500,7 +500,8 @@ local TEXTURES = "Interface\\AddOns\\Maines\\textures\\"
 local GRAIN_TEXTURE = TEXTURES .. "grain.tga"
 local BRUSHED_TEXTURE = TEXTURES .. "brushed.tga"
 local GLOW_TEXTURE = TEXTURES .. "glow.tga"
--- Maines' own line-art icons (tools/make_icons.py): white, tinted in game.
+-- Maines' own full-colour icons (tools/make_icons.py): brass, enamel and parchment with a dark
+-- outline. Always drawn at white vertex colour - never tinted, never registered for /maincolor.
 local ICONS = TEXTURES .. "icons\\"
 local LOGO_TEXTURE = TEXTURES .. "logo.tga"
 
@@ -791,6 +792,7 @@ end
 -- A tab in the row under the title: icon above its label on the dark walnut tab strip, a soft
 -- highlight on hover, and - for the open page - a parchment surface that joins it to the
 -- content panel below, like a folder tab, with an accent bar along its top edge.
+local NAV_ICON_DIM = 0.72   -- alpha of an unselected, un-hovered tab's icon
 local function Maines_MakeNavButton(parent, width, height, text, iconPath)
     local btn = CreateFrame("Button", nil, parent)
     btn:SetSize(width, height)
@@ -828,9 +830,12 @@ local function Maines_MakeNavButton(parent, width, height, text, iconPath)
     Maines_RegisterTexture(bar)
     btn.bar = bar
 
+    -- Full-colour icon, never tinted: the open tab shows it at full strength, the others
+    -- slightly faded into the wood, and hovering brings it back up.
     local icon = btn:CreateTexture(nil, "ARTWORK")
     icon:SetSize(20, 20)
     icon:SetTexture(iconPath)
+    icon:SetVertexColor(1, 1, 1)
     icon:SetPoint("TOP", 0, -5)
     btn.icon = icon
 
@@ -845,18 +850,18 @@ local function Maines_MakeNavButton(parent, width, height, text, iconPath)
         if selected then
             bg:Show(); bar:Show()
             fs:SetTextColor(INK[1], INK[2], INK[3])
-            icon:SetVertexColor(INK[1], INK[2], INK[3])
+            icon:SetAlpha(1)
         else
             bg:Hide(); bar:Hide()
             fs:SetTextColor(PLATE_TEXT_SOFT[1], PLATE_TEXT_SOFT[2], PLATE_TEXT_SOFT[3])
-            icon:SetVertexColor(PLATE_TEXT_SOFT[1], PLATE_TEXT_SOFT[2], PLATE_TEXT_SOFT[3])
+            icon:SetAlpha(NAV_ICON_DIM)
         end
     end
     btn:SetScript("OnEnter", function(self)
         hover:Show()
         if not self.selected then
             fs:SetTextColor(PLATE_TEXT[1], PLATE_TEXT[2], PLATE_TEXT[3])
-            icon:SetVertexColor(PLATE_TEXT[1], PLATE_TEXT[2], PLATE_TEXT[3])
+            icon:SetAlpha(1)
         end
     end)
     btn:SetScript("OnLeave", function(self)
@@ -1405,26 +1410,24 @@ local Help_Sections = {
     },
 }
 
--- One of Maines' own icons inline in text, tinted `hex` (they're white line art).
-local function Maines_HelpIcon(name, size, hex)
+-- One of Maines' own icons inline in text, in its own colours (no tint fields in the escape).
+local function Maines_HelpIcon(name, size)
     size = size or 16
-    local r, g, b = Maines_HexToRGB(hex or "F5E8C7")
-    return ("|T%s%s.tga:%d:%d:0:0:64:64:0:64:0:64:%d:%d:%d|t"):format(
-        ICONS, name, size, size, r * 255, g * 255, b * 255)
+    return ("|T%s%s.tga:%d:%d|t"):format(ICONS, name, size, size)
 end
 
 -- Chat fallback: the original print-based reference, kept behind "/mainhelp text" for anyone
 -- who wants a copyable/scrollable-in-chat version instead of the window below.
 local function Maines_PrintHelpToChat()
     print(("%s |cFFFFD100Maines — Command Reference|r %s"):format(
-        Maines_HelpIcon("help", 16, "FFD100"), Maines_HelpIcon("help", 16, "FFD100")))
+        Maines_HelpIcon("help", 16), Maines_HelpIcon("help", 16)))
     print(" ")
 
     for _, section in ipairs(Help_Sections) do
         print(("|cFF%s%s|r"):format(section.color, section.title))
         for _, e in ipairs(section.entries) do
             local header = e.args ~= "" and (e.cmd.." |cFFFFFFFF"..e.args.."|r") or e.cmd
-            print(("  %s |cFF%s%s|r"):format(Maines_HelpIcon(section.icon, 16, section.color), section.color, header))
+            print(("  %s |cFF%s%s|r"):format(Maines_HelpIcon(section.icon, 16), section.color, header))
             print("      |cFFCCCCCC"..e.desc.."|r")
             print("      |cFF888888e.g.|r |cFFEEEEEE"..e.example.."|r")
             if e.note then
@@ -1512,7 +1515,7 @@ local function Maines_BuildHelpContent()
         header:SetPoint("TOP", 0, y)
         header:SetWidth(HELP_CONTENT_WIDTH - 12)
         header:SetJustifyH("CENTER")
-        header:SetText(Maines_HelpIcon(section.icon, 18, winColor) .. "  " .. section.title)
+        header:SetText(Maines_HelpIcon(section.icon, 18) .. "  " .. section.title)
         local r, g, b = Maines_HexToRGB(winColor)
         header:SetTextColor(r, g, b)
         y = y - header:GetStringHeight() - 10
