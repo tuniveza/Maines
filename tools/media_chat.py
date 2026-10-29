@@ -23,8 +23,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "docs", "media")
 LIB_SANS = "/usr/share/fonts/liberation/LiberationSans-Regular.ttf"
 NARROW_FONT = os.path.join(ROOT, "tools", "fonts", "LiberationSansNarrow-Regular.ttf")
-AGAVE_BOLD = os.path.join(ROOT, "fonts", "agave", "Agave-Bold.ttf")
-AGAVE = os.path.join(ROOT, "fonts", "agave", "Agave-Regular.ttf")
+UI_BOLD = os.path.join(ROOT, "fonts", "firasans", "FiraSans-SemiBold.ttf")    # labels
+UI_BUTTON = os.path.join(ROOT, "fonts", "breeserif", "BreeSerif-Regular.ttf")  # buttons, keys
+UI_BODY = os.path.join(ROOT, "fonts", "firasans", "FiraSans-Medium.ttf")       # body text
 NBSP = " "
 
 CHAT_PX = 17          # chat text size in pixels
@@ -165,7 +166,7 @@ def plate(draw, box, radius=6):
 
 def keycap(img, x, y, label, pressed):
     d = ImageDraw.Draw(img)
-    f = ImageFont.truetype(AGAVE_BOLD, 13)
+    f = ImageFont.truetype(UI_BUTTON, 13)
     w = int(f.getlength(label)) + 18
     off = 2 if pressed else 0
     if not pressed:
@@ -286,13 +287,13 @@ def caption_maker(title, sub, frames=None, current=None):
     def draw(img):
         d = ImageDraw.Draw(img)
         plate(d, (16, 10, 744, 50))
-        fb = ImageFont.truetype(AGAVE_BOLD, 15)
-        fs = ImageFont.truetype(AGAVE, 11)
+        fb = ImageFont.truetype(UI_BOLD, 15)
+        fs = ImageFont.truetype(UI_BODY, 11)
         d.text((30, 13), title, font=fb, fill=PLATE_TEXT + (255,))
         d.text((30, 32), sub, font=fs, fill=PLATE_TEXT_SOFT + (255,))
         left_end = 30 + max(fb.getlength(title), fs.getlength(sub)) + 20
         if frames:
-            ff = ImageFont.truetype(AGAVE_BOLD, 13)
+            ff = ImageFont.truetype(UI_BOLD, 13)
             n = len(frames)
             while True:
                 shown = frames[:n]
@@ -371,7 +372,7 @@ def make_phrases(data):
             # the keys, on the right of the caption plate (Ctrl-1 is an example binding)
             y = 15
             x = keycap(img, 548, y, "Ctrl", pressed and label == "CTRL-1")
-            ImageDraw.Draw(img).text((x + 5, y + 5), "+", font=ImageFont.truetype(AGAVE_BOLD, 13),
+            ImageDraw.Draw(img).text((x + 5, y + 5), "+", font=ImageFont.truetype(UI_BUTTON, 13),
                                      fill=PLATE_TEXT + (255,))
             x = keycap(img, x + 18, y, "1", pressed and label == "CTRL-1")
             keycap(img, x + 22, y, "Enter", pressed and label == "ENTER")
@@ -422,8 +423,8 @@ def make_badges_png(data):
     H = sum(row_h) + (rows + 1) * pad
     img = backdrop(W, H, seed=3).convert("RGBA")
     d = ImageDraw.Draw(img)
-    fb = ImageFont.truetype(AGAVE_BOLD, 14)
-    fs = ImageFont.truetype(AGAVE, 12)
+    fb = ImageFont.truetype(UI_BOLD, 14)
+    fs = ImageFont.truetype(UI_BODY, 12)
     y = pad
     for r in range(rows):
         for c in range(cols):

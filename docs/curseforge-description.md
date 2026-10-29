@@ -38,4 +38,4 @@ That's it. Type `/maines` for everything else.
 
 ---
 
-Font: [Agave](https://github.com/blobject/agave) (OFL 1.1) · Libraries: Ace3, LibDBIcon · Source and issues: [GitHub](https://github.com/tuniveza/Maines)
+Fonts: [New Rocker](https://fonts.google.com/specimen/New+Rocker), [Vollkorn SC](https://fonts.google.com/specimen/Vollkorn+SC), [Fira Sans](https://fonts.google.com/specimen/Fira+Sans), [Bree Serif](https://fonts.google.com/specimen/Bree+Serif) (OFL 1.1) · Libraries: Ace3, LibDBIcon · Source and issues: [GitHub](https://github.com/tuniveza/Maines)

@@ -214,7 +214,11 @@ Valid names: `SAY`, `YELL`, `EMOTE`, `PARTY`, `PARTY_LEADER`, `RAID`, `RAID_LEAD
   Community chat is detected by the edit box's `clubId`, because Blizzard doesn't always mark it as
   `COMMUNITIES_CHANNEL`.
 - Built on Ace3 (AceAddon, AceHook) with LibDataBroker and LibDBIcon. Text is set in
-  [Agave](https://github.com/blobject/agave) (SIL Open Font License 1.1).
+  [New Rocker](https://fonts.google.com/specimen/New+Rocker) (titles),
+  [Vollkorn SC](https://fonts.google.com/specimen/Vollkorn+SC) (headings),
+  [Fira Sans](https://fonts.google.com/specimen/Fira+Sans) (text) and
+  [Bree Serif](https://fonts.google.com/specimen/Bree+Serif) (buttons), all under the
+  SIL Open Font License 1.1 (licence files in `fonts/`).
 </details>
 
 ## Author

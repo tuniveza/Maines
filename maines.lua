@@ -116,7 +116,9 @@
       with pyftsubset down to the Latin + punctuation ranges this UI needs (~2.6MB per weight
       down to ~45KB - the upstream release ships thousands of icon glyphs this addon never
       uses). Maines_MakeFontObject() falls back to Blizzard's FRIZQT__ if the file is ever
-      missing so a corrupted install degrades instead of erroring.
+      missing so a corrupted install degrades instead of erroring. (Agave was later replaced
+      by thicker faces per role - New Rocker, Vollkorn SC, Fira Sans, Bree Serif - see the
+      font objects below.)
     - Brightness: every panel now pulls from one shared value ramp (WINDOW_BG / CONTENT_BG /
       PLATE_BG / BORDER_DARK, defined once near the top of the GUI helpers) instead of each
       panel hard-coding its own tint. The old build jumped from near-white content panels to
@@ -445,15 +447,22 @@ end
 -- pass can re-skin without touching any layout logic. These few helpers are shared by every
 -- panel built further down (the main window and the /mainhelp window).
 
--- Font objects, loaded from the addon's own font files (fonts/agave/) rather than Blizzard's
--- built-ins - Agave, a free/open monospace-derived font (SIL Open Font License 1.1, bundled
--- with LICENSE/NOTICE in that folder), via its Nerd Fonts "Propo" (proportional-metrics)
--- release, subset down to the Latin + punctuation ranges this UI actually uses (~2.6MB per
--- weight down to ~45KB - the original ships thousands of icon glyphs this addon has no use
--- for). Falls back to Blizzard's own FRIZQT__ if the font file is ever missing for some
--- reason (a corrupt install, a manual file deletion) so the UI degrades instead of erroring.
-local AGAVE_REGULAR = "Interface\\AddOns\\Maines\\fonts\\agave\\Agave-Regular.ttf"
-local AGAVE_BOLD = "Interface\\AddOns\\Maines\\fonts\\agave\\Agave-Bold.ttf"
+-- Font objects, loaded from the addon's own font files (fonts/) rather than Blizzard's
+-- built-ins. A different thick, warm face per role, all from Google Fonts under the SIL Open
+-- Font License 1.1 (each folder carries its OFL.txt), static instances subset with pyftsubset
+-- to Latin + Latin-1 + common punctuation (the display face to ASCII only), 20-37KB each:
+--   New Rocker      - the window/help titles (a heavy, flared fantasy display face)
+--   Vollkorn SC     - section headings (sturdy engraved small caps)
+--   Fira Sans       - labels (SemiBold) and body/help text (Medium): thick, open, readable small
+--   Bree Serif      - buttons and tabs (a chunky, friendly slab)
+-- Falls back to Blizzard's own FRIZQT__ if a font file is ever missing for some reason (a
+-- corrupt install, a manual file deletion) so the UI degrades instead of erroring.
+local FONT_DIR = "Interface\\AddOns\\Maines\\fonts\\"
+local FONT_DISPLAY = FONT_DIR .. "newrocker\\NewRocker-Regular.ttf"
+local FONT_HEADING = FONT_DIR .. "vollkornsc\\VollkornSC-Bold.ttf"
+local FONT_LABEL = FONT_DIR .. "firasans\\FiraSans-SemiBold.ttf"
+local FONT_BODY = FONT_DIR .. "firasans\\FiraSans-Medium.ttf"
+local FONT_BUTTON = FONT_DIR .. "breeserif\\BreeSerif-Regular.ttf"
 
 local function Maines_MakeFontObject(name, path, size, flags)
     local font = CreateFont(name)
@@ -463,16 +472,13 @@ local function Maines_MakeFontObject(name, path, size, flags)
     return font
 end
 
-local Maines_Font_Title = Maines_MakeFontObject("Maines_Font_Title", AGAVE_BOLD, 24, "")
--- Titles and headings use WoW's own engraved display face (the one quest titles use); body text
--- stays in Agave.
-local MORPHEUS = "Fonts\\MORPHEUS.TTF"
-local Maines_Font_Display = Maines_MakeFontObject("Maines_Font_Display", MORPHEUS, 30, "")
-local Maines_Font_Heading = Maines_MakeFontObject("Maines_Font_Heading", MORPHEUS, 17, "")
-local Maines_Font_Header = Maines_MakeFontObject("Maines_Font_Header", AGAVE_BOLD, 13, "")
-local Maines_Font_Body = Maines_MakeFontObject("Maines_Font_Body", AGAVE_REGULAR, 12, "")
-local Maines_Font_BodySmall = Maines_MakeFontObject("Maines_Font_BodySmall", AGAVE_REGULAR, 10, "")
-local Maines_Font_Button = Maines_MakeFontObject("Maines_Font_Button", AGAVE_BOLD, 12, "")
+local Maines_Font_Title = Maines_MakeFontObject("Maines_Font_Title", FONT_DISPLAY, 24, "")
+local Maines_Font_Display = Maines_MakeFontObject("Maines_Font_Display", FONT_DISPLAY, 30, "")
+local Maines_Font_Heading = Maines_MakeFontObject("Maines_Font_Heading", FONT_HEADING, 17, "")
+local Maines_Font_Header = Maines_MakeFontObject("Maines_Font_Header", FONT_LABEL, 13, "")
+local Maines_Font_Body = Maines_MakeFontObject("Maines_Font_Body", FONT_BODY, 12, "")
+local Maines_Font_BodySmall = Maines_MakeFontObject("Maines_Font_BodySmall", FONT_BODY, 10, "")
+local Maines_Font_Button = Maines_MakeFontObject("Maines_Font_Button", FONT_BUTTON, 12, "")
 
 -- A single warm brass/walnut value ramp used for every panel in the UI, light to dark, so
 -- nothing jumps between near-white and near-black the way the first pass did. Ink colors are
@@ -1518,7 +1524,8 @@ local function Maines_BuildHelpContent()
         y = y - header:GetStringHeight() - 10
 
         for _, e in ipairs(section.entries) do
-            local entryFS = helpContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            local entryFS = helpContent:CreateFontString(nil, "OVERLAY")
+            entryFS:SetFontObject(Maines_Font_Body)
             entryFS:SetPoint("TOP", 0, y)
             entryFS:SetWidth(HELP_CONTENT_WIDTH - 12)
             entryFS:SetJustifyH("CENTER")
@@ -1799,7 +1806,7 @@ windowTitle:SetShadowOffset(0, -1)
 
 local windowSubtitle = header:CreateFontString(nil, "OVERLAY")
 windowSubtitle:SetFontObject(Maines_Font_BodySmall)
-windowSubtitle:SetPoint("TOP", windowTitle, "BOTTOM", 0, -2)
+windowSubtitle:SetPoint("TOP", windowTitle, "BOTTOM", 0, -4)
 windowSubtitle:SetJustifyH("CENTER")
 windowSubtitle:SetText("gnomish / goblin-engineered chat tagger")
 windowSubtitle:SetTextColor(0.30, 0.18, 0.07)
@@ -1983,7 +1990,7 @@ my = my - bracketLabel:GetStringHeight() - 8
 
 local Bracket_Order = {"[", "(", "<", "{", ".", ":", "-", "~", "@", "#"}
 ns.Bracket_Order = Bracket_Order
-local BRACKET_AREA_WIDTH = 400
+local BRACKET_AREA_WIDTH = 440
 local Maines_BracketButtons = {}
 local Maines_SelectedBracketKey
 local bracketRowTop = my
