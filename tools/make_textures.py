@@ -370,9 +370,12 @@ def palettes():
 
 # ------------------------------------------------------------------ window frame borders
 # The frame round the Maines window, the /mainhelp window and the /mainnote popup, one style per
-# /maincolor palette plus "brass" for the start look. Unlike the overlays above these are full
-# colour and lit (a height field, shaded with a light from the top left), like carved or forged
-# picture frames. Each style is eight files in frames/<key>/, laid out the way Maines draws them:
+# /maincolor palette plus "brass" for the start look. Every style is cut from the same moulding
+# (rounded lip, flat field, inner bead, a dark step onto the window) and lit from the top left
+# like the title band; only a shallow motif in the field (engraving, inlay, hammering, bolts) and
+# the corner ornament differ. The textures are greyscale relief: Maines tints them with the same
+# palette tone as the title band, so frame and window are always one material and one colour.
+# Each style is eight files in frames/<key>/, laid out the way Maines draws them:
 #   tl, tr, bl, br   32x32  the corners (16 UI units square)
 #   top, bottom      128x32 edge strips that repeat along their length every 64 UI units
 #   left, right      32x128
@@ -380,8 +383,7 @@ def palettes():
 # frame's outer edge) and a (texels along the edge, 0 at every corner join) - so the strips meet
 # the corners without a step, and a strip repeats a whole number of times (the add-on rounds
 # the repeat to fit) so it also lands on a join at the far end. Corners are mitred like a
-# picture frame (or rounded for the neon, diner and Scream frames); a corner's two halves keep
-# the two strips' own patterns and meet on the diagonal.
+# picture frame; a corner's two halves keep the two strips' own patterns and meet on the diagonal.
 FT, FL, PAD = 32, 128, 2
 LIGHT = np.array([-1.0, -1.0, 1.6]); LIGHT /= np.linalg.norm(LIGHT)
 HALF = LIGHT + np.array([0.0, 0.0, 1.0]); HALF /= np.linalg.norm(HALF)
@@ -475,375 +477,252 @@ def light(c, out):
     return img[PAD:-PAD, PAD:-PAD]
 
 
-def moulding(d):
-    # outer roll, a flat field, an inner bead, then a step down to the window
-    return 2.2 * dome((d - 4) / 4) + 1.2 * band(d, 8, 25) + 2.0 * dome((d - 27.5) / 3)
+def frame_profile(d):
+    # the shared moulding every frame is cut from: a rounded outer lip, a flat field, an inner
+    # bead, then a crisp dark step down onto the window (so frame and window meet in one line)
+    return 1.5 * dome((d - 3.5) / 3.5) + 0.9 * band(d, 7, 25.5) + 1.3 * dome((d - 27.8) / 2.4)
+
+
+FIELD = (8.0, 24.5)    # the flat field between lip and bead, where each palette's motif sits
+
+
+def field_mask(d):
+    return band(d, FIELD[0], FIELD[1], 0.8)
 
 
 def corner_r(c, cu=16.5, cv=16.5):
     return np.hypot(c["u"] - cu, c["v"] - cv)
 
 
-def rivets(c, period, phase, dc, radius, height=1.6):
-    r = np.hypot(nearest(c["a"], period, phase), c["d"] - dc)
-    return np.where(c["corner"], 0, height * dome(r / radius))
-
-
-def frame_brass(rng):
-    # the start look: riveted, brushed brass, a boss in each corner
-    streak = strip_field(rng, 20, 0)
+def make_frame(motif, ornament="boss"):
+    """One frame style: the shared moulding and lighting, plus `motif(c, field) -> (dh, dalb)`, a
+    shallow height and brightness change inside the field, and a corner ornament."""
     def piece(c):
         d = c["d"]
-        h = moulding(d) + rivets(c, 32, 16, 16.5, 3.6)
+        field = field_mask(d)
+        h = frame_profile(d)
+        alb = np.full(d.shape, 0.74)
+        dh, dalb = motif(c, field)
+        h = h + dh * field
+        alb = alb + dalb * field
+        corner = np.asarray(c["corner"])
         r = corner_r(c)
-        h = np.maximum(h, 1.2 + 1.6 * dome(r / 7.5) + 1.2 * dome(r / 3))
-        ao = 0.6 + 0.4 * np.clip(h / 2.2, 0, 1)
-        col = rgb(0.72, 0.53, 0.24) * (0.82 + 0.3 * at(streak, c))[..., None] * ao[..., None]
-        return {"height": h, "color": col, "spec": 0.8, "shine": 18}
+        cu, cv = c["u"] - 16.5, c["v"] - 16.5
+        if ornament == "boss":
+            orn = dome(r / 4.4) * 0.9
+            h = np.where(corner & (r < 4.4), 0.9 + orn, h)
+        elif ornament == "bolt":
+            slot = band(cu + cv, -0.5, 0.5, 0.4) * (r < 3.4)
+            h = np.where(corner & (r < 4.4), 0.9 + dome(r / 4.4) * 0.8 - 0.5 * slot, h)
+        elif ornament == "ring":
+            ring = band(r, 3.0, 4.4, 0.5)
+            h = np.where(corner & (r < 5.0), 0.9 + 0.45 * ring - 0.25 * (r < 1.2), h)
+        elif ornament == "star":
+            ang = np.arctan2(cv, cu)
+            star = (r < 5.0) & (r < 2.2 + 2.8 * np.abs(np.cos(ang * 2)) ** 3)
+            h = np.where(corner & (r < 5.5), 0.9 + 0.5 * star, h)
+        elif ornament == "spiral":
+            ang = np.arctan2(cv, cu)
+            groove = np.cos(r * 1.6 - ang) > 0.6
+            h = np.where(corner & (r < 5.0), 0.9 + 0.6 * dome(r / 5.0) - 0.3 * groove, h)
+        elif ornament == "square":
+            sq = np.maximum(abs(cu), abs(cv))
+            h = np.where(corner & (sq < 4.5), 0.9 + 0.5 * band(sq, -1, 3.2, 0.6), h)
+        elif ornament == "target":
+            mark = band(r, 3.4, 4.2, 0.4) + (band(cu, -0.35, 0.35, 0.4) + band(cv, -0.35, 0.35, 0.4)) * (r < 5.2)
+            h = np.where(corner & (r < 5.5), 0.9 - 0.35 * np.clip(mark, 0, 1), h)
+        step = d > 30.6
+        h = np.where(step, 0.0, h)
+        alb = np.where(step, 0.30, alb)
+        return {"height": h, "color": np.clip(alb, 0, 1)[..., None] * np.ones(3), "spec": 0.35, "shine": 18}
     return piece
 
 
+def frame_brass(rng):
+    # the start look: plain brushed brass, a boss at each corner
+    streak = strip_field(rng, 20, 0)
+    return make_frame(lambda c, f: (0, 0.10 * (at(streak, c) - 0.5)), "boss")
+
+
 def frame_copper(rng):
-    # Gnomeregan Copper: hammered, weathered copper, verdigris creeping into the low spots
-    pts = [(rng.uniform(8, 25), rng.uniform(0, FL)) for _ in range(46)]
+    # Gnomeregan Copper: a softly hammered field, small rivets
+    pts = [(rng.uniform(FIELD[0], FIELD[1]), rng.uniform(0, FL)) for _ in range(44)]
     dd, aa = np.mgrid[0:FT, 0:FL].astype(float) + 0.5
     f1 = np.full((FT, FL), 1e3)
     for pd, pa in pts:
         f1 = np.minimum(f1, np.hypot(dd - pd, wrapped(aa - pa, FL)))
-    dents = -0.9 * dome(f1 / 5.5)
-    spots = strip_field(rng, 4, 1)
-    def piece(c):
-        d = c["d"]
-        h = moulding(d) + at(dents, c) * band(d, 8, 25) + rivets(c, 32, 16, 16.5, 3.4, 1.4)
-        r = corner_r(c)
-        h = np.maximum(h, 1.0 + 1.5 * dome(r / 7) + 1.0 * dome(r / 2.8))
-        low = 1 - np.clip(h / 2.2, 0, 1)
-        col = mix(rgb(0.74, 0.40, 0.20), rgb(0.34, 0.16, 0.08), 0.45 * low)
-        green = np.clip((at(spots, c) - 0.55) * 3 + low * 0.9 - 0.4, 0, 1)
-        col = mix(col, rgb(0.33, 0.58, 0.48), green)
-        return {"height": h, "color": col, "spec": 0.7 * (1 - green), "shine": 14}
-    return piece
+    dents = -0.45 * dome(f1 / 5.0)
+    return make_frame(lambda c, f: (at(dents, c), 0.0), "boss")
 
 
 def frame_ironforge(rng):
-    # Ironforge: blued steel, two cut grooves, slotted bolts
-    temper = strip_field(rng, 14, 3)
+    # Ironforge: brushed steel, two cut grooves, slotted bolts every 64 units
     streak = strip_field(rng, 26, 0)
-    def piece(c):
+    def motif(c, f):
         d, a = c["d"], c["a"]
-        h = 2.0 * np.clip(d / 4, 0, 1) * np.clip((31 - d) / 4, 0, 1)
-        h = h - 0.7 * (dome((d - 11) / 1.8) + dome((d - 21) / 1.8))
-        da, dr = nearest(a, 64, 32), d - 16
-        bolt = 1.5 * dome(np.hypot(da, dr) / 3.6) - 0.6 * band(da + dr, -0.6, 0.6) * (np.hypot(da, dr) < 3.2)
-        h = h + np.where(c["corner"], 0, bolt)
-        r = corner_r(c)
-        cu, cv = c["u"] - 16.5, c["v"] - 16.5
-        plate = (np.maximum(abs(cu), abs(cv)) < 8.5) * 1.6
-        cbolt = 1.4 * dome(r / 4.2) - 0.6 * band(cu - cv, -0.6, 0.6) * (r < 3.8)
-        h = np.maximum(h, plate + cbolt * (r < 4.2))
-        t = at(temper, c)
-        col = mix(rgb(0.25, 0.31, 0.48), rgb(0.47, 0.40, 0.60), np.clip(t * 1.4 - 0.5, 0, 1))
-        col = mix(col, rgb(0.62, 0.66, 0.72), np.clip((h - 1.4) * 0.6, 0, 1))
-        col = col * (0.86 + 0.24 * at(streak, c))[..., None]
-        return {"height": h, "color": col, "spec": 1.0, "shine": 30}
-    return piece
+        grooves = -0.45 * (dome((d - 10.5) / 1.2) + dome((d - 22) / 1.2))
+        da, dr = nearest(a, 64, 32), d - 16.2
+        r = np.hypot(da, dr)
+        bolt = np.where(np.asarray(c["corner"]), 0, 0.7 * dome(r / 3.0) - 0.35 * band(da + dr, -0.5, 0.5, 0.4) * (r < 2.6))
+        return grooves + bolt, 0.12 * (at(streak, c) - 0.5)
+    return make_frame(motif, "bolt")
 
 
 def frame_verdigris(rng):
-    # Verdigris Goblin: cast bronze gone green, the patina thickest in the hollows
-    patina = strip_field(rng, 6, 2)
-    def piece(c):
-        d = c["d"]
-        h = 2.4 * dome((d - 16) / 13) + 0.9 * dome((d - 2.8) / 2.6) + 0.9 * dome((d - 29) / 2.6)
-        r = corner_r(c)
-        h = np.maximum(h, 1.4 + 1.4 * dome(r / 6.5))
-        low = 1 - np.clip(h / 2.4, 0, 1)
-        g = np.clip(at(patina, c) * 1.1 + low * 1.1 - 0.55, 0, 1) ** 0.8
-        col = mix(rgb(0.58, 0.40, 0.21), mix(rgb(0.38, 0.62, 0.52), rgb(0.24, 0.44, 0.37), low), g)
-        return {"height": h, "color": col, "spec": 0.8 * (1 - g) + 0.05, "shine": 16}
-    return piece
+    # Verdigris Goblin: cast bronze, pitted and mottled where the patina sat
+    mottle = strip_field(rng, 5, 2)
+    pits = (rng.random((FT, FL)) > 0.96).astype(float)
+    def motif(c, f):
+        m = at(mottle, c)
+        return -0.25 * at(pits, c), 0.16 * (m - 0.5)
+    return make_frame(motif, "boss")
 
 
 def frame_kiss(rng):
-    # The Kiss: gilt beads either side of a band of mosaic tesserae, a spiral boss at each corner
-    choices = [rgb(0.86, 0.66, 0.24), rgb(0.80, 0.58, 0.18), rgb(0.93, 0.76, 0.34), rgb(0.70, 0.50, 0.16),
-               rgb(0.55, 0.12, 0.20), rgb(0.10, 0.08, 0.06), rgb(0.88, 0.86, 0.80), rgb(0.26, 0.42, 0.36)]
-    weights = np.array([0.24, 0.2, 0.16, 0.12, 0.1, 0.08, 0.06, 0.04])
-    pick = rng.choice(len(choices), size=(3, FL // 8), p=weights / weights.sum())
-    tilt = rng.normal(0, 0.10, size=(3, FL // 8, 2))
-    def piece(c):
+    # The Kiss: a field of small inlaid tesserae, each catching the light a little differently
+    shade = rng.normal(0, 0.06, size=(3, FL // 8))
+    tilt = rng.normal(0, 0.07, size=(3, FL // 8, 2))
+    def motif(c, f):
         d, a = c["d"], c["a"]
-        gold = rgb(0.84, 0.64, 0.24)
-        h = 1.8 * dome((d - 3) / 3) + 1.8 * dome((d - 29) / 3)
-        inside = band(d, 6.5, 25.5, 0.5)
-        row = np.clip(np.floor((d - 7) / 6), 0, 2).astype(int)
-        colm = (np.floor(a / 8).astype(int)) % (FL // 8)
-        fd, fa = (d - 7) % 6, a % 8
-        grout = np.minimum(np.minimum(fd, 6 - fd), np.minimum(fa, 8 - fa)) < 0.5
-        tile = np.stack(choices)[pick[row, colm]]
-        tl = tilt[row, colm]
-        th = 0.9 + tl[..., 0] * (fd - 3) + tl[..., 1] * (fa - 4)
-        h = h + inside * np.where(grout, 0.3, th)
-        col = mix(gold[None, None] * np.ones(d.shape + (3,)), np.where(grout[..., None], rgb(0.20, 0.14, 0.07), tile), inside)
-        r = corner_r(c)
-        theta = np.arctan2(c["v"] - 16.5, c["u"] - 16.5)
-        boss = r < 9
-        spiral = np.cos(r * 1.5 - theta * 1.0) > 0.7
-        h = np.where(boss, 1.4 + 1.2 * dome(r / 9) - 0.4 * spiral, h)
-        col = np.where(boss[..., None], np.where(spiral[..., None], rgb(0.55, 0.38, 0.10), rgb(0.93, 0.75, 0.32)), col)
-        return {"height": h, "color": col, "spec": 0.9, "shine": 22}
-    return piece
+        row = np.clip(np.floor((d - FIELD[0]) / 5.5), 0, 2).astype(int)
+        col = (np.floor(a / 8).astype(int)) % (FL // 8)
+        fd, fa = (d - FIELD[0]) % 5.5, a % 8
+        grout = np.minimum(np.minimum(fd, 5.5 - fd), np.minimum(fa, 8 - fa)) < 0.5
+        tl = tilt[row, col]
+        dh = np.where(grout, -0.3, tl[..., 0] * (fd - 2.75) + tl[..., 1] * (fa - 4))
+        return dh, np.where(grout, -0.12, shade[row, col])
+    return make_frame(motif, "spiral")
 
 
 def frame_memory(rng):
-    # The Persistence of Memory: a gilt frame gone soft - a wavering outline, drips hanging off the
-    # bottom, and a melted watch in each corner
-    wobble = strip_field(rng, 10, 0)[0]
-    drops = [(rng.uniform(0, FL), rng.uniform(3.5, 6.0), rng.uniform(2.5, 4.5)) for _ in range(3)]
+    # The Persistence of Memory: the moulding gone soft - the field sags and smears
+    wob = strip_field(rng, 10, 0)
     smear = strip_field(rng, 16, 2)
-    def piece(c):
-        d, a = c["d"], c["a"]
-        wob = sample(wobble[None, :].repeat(2, 0), np.zeros_like(a), a - 0.5) * 3.0
-        drip = np.zeros_like(a)
-        for pa, ln, wd in drops:
-            drip = np.maximum(drip, ln * dome(wrapped(a - pa, FL) / wd))
-        hang = np.where(c["side"] == "bottom", drip, 0) if np.ndim(c["side"]) else (drip if c["side"] == "bottom" else 0)
-        de = d - 6 + wob * 0.6 + hang
-        h = 2.6 * dome((de - 11) / 11.5) + 1.6 * dome((de - 24) / 2.5) + 0.6 * dome((de + 0.5 - hang) / 3) * (hang > 0)
-        col = rgb(0.82, 0.62, 0.28) * (0.8 + 0.35 * at(smear, c, d=de + 6))[..., None]
-        col = col * (0.62 + 0.38 * np.clip(h / 2.6, 0, 1))[..., None]
-        # the melted watch: a cream face, sagging, with a gilt rim and two hands
-        fu, fv = c["u"] - 15.5, (c["v"] - 15.0) * 1.35
-        r = np.hypot(fu, fv)
-        face, rim = r < 7.0, (r >= 7.0) & (r < 8.6)
-        hands = ((band(fu, -0.5, 0.5, 0.4) > 0.5) & (fv < 0) & (fv > -5.5)) | ((band(fv, -0.5, 0.5, 0.4) > 0.5) & (fu > 0) & (fu < 4.0))
-        h = np.where(face, 1.8, np.where(rim, 2.4, h))
-        col = np.where(face[..., None], np.where(hands[..., None], rgb(0.18, 0.12, 0.08), rgb(0.92, 0.87, 0.72)), col)
-        col = np.where(rim[..., None], rgb(0.88, 0.70, 0.34), col)
-        alpha = np.clip(de + 0.5, 0, 1)
-        alpha = np.where(face | rim, 1.0, alpha)
-        return {"height": h, "color": col, "spec": 0.7, "shine": 18, "alpha": alpha}
-    return piece
+    def motif(c, f):
+        w = at(wob, c, d=np.full(c["d"].shape, 16.0))
+        dh = 0.45 * np.sin((c["d"] - FIELD[0]) / (FIELD[1] - FIELD[0]) * np.pi * (1.2 + w)) - 0.2
+        return dh, 0.12 * (at(smear, c, d=c["d"] + 4 * w) - 0.5)
+    return make_frame(motif, "ring")
 
 
 def frame_neon(rng):
-    # Undermine Neon: two glass tubes, hot red and acid green, clipped to a dark backing board
-    grit = strip_field(rng, 1, 1)
-    def piece(c):
-        d, a = c["d"], c["a"]
-        h = 1.0 * band(d, 2, 31) + 0.8 * dome((d - 1.2) / 1.6)
-        col = rgb(0.09, 0.08, 0.11) * (0.8 + 0.4 * at(grit, c))[..., None]
-        col = np.where((d < 2.4)[..., None], rgb(0.42, 0.42, 0.46), col)
-        emit = np.zeros(d.shape + (3,))
-        for dc, hue, core in ((10.5, rgb(0.95, 0.18, 0.26), rgb(1.0, 0.80, 0.82)),
-                              (21.5, rgb(0.20, 0.90, 0.50), rgb(0.85, 1.0, 0.90))):
-            x = d - dc
-            h = h + 1.3 * dome(x / 2.2)
-            emit = emit + hue * (0.75 * np.exp(-(x / 4.0) ** 2))[..., None] + core * np.exp(-(x / 1.0) ** 2)[..., None]
-        clip_ = (abs(nearest(a, 64, 32)) < 1.4) & (abs(d - 16) < 8) & ~np.asarray(c["corner"])
-        h = np.where(clip_, 2.2, h)
-        col = np.where(clip_[..., None], rgb(0.55, 0.55, 0.58), col)
-        emit = np.where(clip_[..., None], emit * 0.25, emit)
-        return {"height": h, "color": col, "spec": 0.5, "shine": 30, "emit": emit}
-    return piece
+    # Undermine Neon: two rounded tubes laid in the field
+    def motif(c, f):
+        d = c["d"]
+        return -0.4 + 0.8 * (dome((d - 12) / 2.2) + dome((d - 20.5) / 2.2)), 0.04 * (dome((d - 12) / 2.2) + dome((d - 20.5) / 2.2))
+    return make_frame(motif, "ring")
 
 
 def frame_blueprint(rng):
-    # Blueprint Ink: a drafting border on blue paper - ruled lines, a scale of ticks along the
-    # inside, a registration target in each corner
-    paper = strip_field(rng, 3, 1)
-    def piece(c):
+    # Blueprint Ink: an engraved double rule and a ruler scale along the inside
+    def motif(c, f):
         d, a = c["d"], c["a"]
-        corner = np.asarray(c["corner"])
-        ink = band(d, 1.0, 2.2) + band(d, 5.0, 5.9) + band(d, 7.0, 7.9) + band(d, 29.4, 30.6)
-        ink = ink + 0.18 * (band(nearest(a, 8), -0.45, 0.45) + band(nearest(d, 8, 4), -0.45, 0.45)) * band(d, 9, 20)
-        tick_len = np.where(abs(nearest(a, 64)) < 0.6, 9, np.where(abs(nearest(a, 16)) < 0.6, 5, 2.5))
-        ticks = band(nearest(a, 4), -0.45, 0.45, 0.5) * band(d, 29.4 - tick_len, 29.6)
-        ink = ink + np.where(corner, 0, ticks)
-        r = corner_r(c, 15.5, 15.5)
-        target = band(r, 5.6, 6.5) + (band(c["u"] - 15.5, -0.4, 0.4) + band(c["v"] - 15.5, -0.4, 0.4)) * (r < 9.5)
-        ink = np.clip(ink + np.where(corner, target, 0), 0, 1)
-        base = mix(rgb(0.10, 0.24, 0.44), rgb(0.14, 0.31, 0.53), at(paper, c))
-        col = mix(base, rgb(0.86, 0.93, 1.0), ink * 0.9)
-        return {"height": 0.4 * band(d, 0.5, 31.5) + 0.25 * ink, "color": col, "spec": 0.0}
-    return piece
+        rule = band(d, 9.5, 10.3, 0.4) + band(d, 11.6, 12.4, 0.4)
+        tick_len = np.where(abs(nearest(a, 64)) < 0.6, 8, np.where(abs(nearest(a, 16)) < 0.6, 5, 2.5))
+        ticks = band(nearest(a, 4), -0.45, 0.45, 0.4) * band(d, 24.5 - tick_len, 24.5, 0.4)
+        ticks = np.where(np.asarray(c["corner"]), 0, ticks)
+        cut = np.clip(rule + ticks, 0, 1)
+        return -0.35 * cut, -0.18 * cut
+    return make_frame(motif, "target")
 
 
 def frame_starry(rng):
-    # The Starry Night: thick swirling paint, blue with streaks of yellow, a star at each corner
+    # The Starry Night: swirling lines engraved in the field, a star at each corner
     psi = norm(roll_blur(roll_blur(roll_blur(rng.random((FT, FL)), 9, 1), 9, 1), 4, 0))
-    fy = np.roll(psi, -1, 1) - np.roll(psi, 1, 1)
-    fx = -(np.roll(psi, -1, 0) - np.roll(psi, 1, 0)) + 0.01
-    mag = np.hypot(fy, fx) + 1e-9
-    strokes = norm(lic(fy / mag, fx / mag, (rng.random((FT, FL)) > 0.78).astype(float), steps=10))
-    def piece(c):
-        d = c["d"]
-        s = at(strokes, c)
+    def motif(c, f):
         p = at(psi, c)
-        col = mix(rgb(0.06, 0.12, 0.32), rgb(0.20, 0.36, 0.62), np.clip(p * 1.2, 0, 1))
-        col = mix(col, rgb(0.70, 0.82, 0.92), np.clip((s - 0.55) * 2.5, 0, 1) * 0.6)
-        col = mix(col, rgb(0.96, 0.82, 0.32), np.clip((s - 0.72) * 4, 0, 1) * (p > 0.55))
-        gilt = (d < 2.0) | (d > 29.5)
-        col = np.where(gilt[..., None], rgb(0.66, 0.52, 0.24), col)
-        h = 1.6 * dome((d - 16) / 15) + 0.9 * s + 0.8 * gilt
-        r = corner_r(c)
-        star = r < 9.5
-        ringc = mix(rgb(0.98, 0.86, 0.40), rgb(0.30, 0.45, 0.70), (np.cos(r * 1.4) * 0.5 + 0.5) * (r > 3))
-        col = np.where(star[..., None], np.where((r < 3)[..., None], rgb(1.0, 0.96, 0.75), ringc), col)
-        h = np.where(star, 1.6 + 0.4 * np.cos(r * 1.4), h)
-        emit = np.where(star[..., None], rgb(0.25, 0.20, 0.05) * np.exp(-(r / 4) ** 2)[..., None], 0)
-        return {"height": h, "color": col, "spec": 0.25, "shine": 10, "emit": emit}
-    return piece
+        line = np.abs(np.sin(p * np.pi * 9)) < 0.22
+        return -0.3 * line, -0.08 * line
+    return make_frame(motif, "star")
 
 
 def frame_wave(rng):
-    # The Great Wave: carved lacquer - rows of breaking crests with curling foam against a pale
-    # sky, and a red artist's seal in each corner
-    foam = strip_field(rng, 1, 0)
-    def piece(c):
+    # The Great Wave: rows of breaking crests engraved along the field
+    def motif(c, f):
         d, a = c["d"], c["a"]
         p = (a % 32) / 32
-        crest = 8 + 10 * p ** 2.2
-        below = d - crest
-        water = below > 0
-        sky = rgb(0.88, 0.82, 0.68)
-        sea = mix(rgb(0.30, 0.50, 0.68), rgb(0.08, 0.18, 0.34), np.clip(below / 12, 0, 1))
-        col = np.where(water[..., None], sea, sky)
-        froth = band(below, -0.2, 1.8, 0.5) + (p > 0.6) * (at(foam, c) > 0.6) * band(below, -4.5, 0, 0.5)
-        col = mix(col, rgb(0.97, 0.95, 0.90), np.clip(froth, 0, 1))
-        h = 0.5 + 0.8 * water + 0.6 * np.clip(froth, 0, 1)
-        rim = (d < 1.6) | (d > 28.5)
-        col = np.where(rim[..., None], rgb(0.18, 0.12, 0.09), col)
-        h = np.where(rim, 1.6 + 0.4 * dome((d - 30.2) / 1.8), h)
-        su, sv = c["u"] - 15.5, c["v"] - 15.5
-        seal = np.maximum(abs(su), abs(sv)) < 5.5
-        mark = seal & ((band(su, -3.5, -2.5, 0.4) + band(sv, 1.5, 2.5, 0.4) + band(su + sv, -0.5, 0.5, 0.4)) > 0.5) & (np.maximum(abs(su), abs(sv)) < 4)
-        col = np.where(seal[..., None], np.where(mark[..., None], rgb(0.95, 0.88, 0.80), rgb(0.72, 0.16, 0.12)), col)
-        h = np.where(seal, 1.2, h)
-        return {"height": h, "color": col, "spec": 0.35, "shine": 26}
-    return piece
+        crest = FIELD[0] + 2 + 11 * p ** 2.2
+        line = band(d - crest, -0.5, 0.5, 0.4) * (d > crest - 1)
+        curl = band(d - crest - 3, -0.4, 0.4, 0.4) * (p > 0.35)
+        cut = np.clip(line + 0.7 * curl, 0, 1)
+        return -0.35 * cut, -0.1 * cut
+    return make_frame(motif, "ring")
 
 
 def frame_lilies(rng):
-    # Water Lilies: soft painted wood dabbed in pond colours, a lily pad at each corner
-    base = np.zeros((FT, FL, 3)) + rgb(0.42, 0.57, 0.56)
-    swell = strip_field(rng, 8, 3)
-    base = mix(base, rgb(0.34, 0.46, 0.62), swell)
-    dab_h = np.zeros((FT, FL))
+    # Water Lilies: a field of soft dabs, like brushwork pressed into gesso
+    dabs = np.zeros((FT, FL))
     dd, aa = np.mgrid[0:FT, 0:FL].astype(float) + 0.5
-    colours = [rgb(0.76, 0.62, 0.78), rgb(0.80, 0.84, 0.66), rgb(0.88, 0.67, 0.72), rgb(0.26, 0.38, 0.56), rgb(0.35, 0.55, 0.38)]
-    for _ in range(150):
-        pd, pa = rng.uniform(2, 30), rng.uniform(0, FL)
-        m = np.clip(1 - np.hypot((dd - pd) / 1.3, wrapped(aa - pa, FL) / 3.2), 0, 1)
-        m = np.clip(m * 3, 0, 1)
-        base = mix(base, colours[rng.integers(len(colours))], m * 0.85)
-        dab_h = np.maximum(dab_h, m)
-    def piece(c):
-        d = c["d"]
-        col = np.stack([at(base[..., i], c) for i in range(3)], -1)
-        h = 1.8 * dome((d - 16) / 15) + 0.7 * dome((d - 2.6) / 2.6) + 0.7 * dome((d - 29.4) / 2.6) + 0.5 * at(dab_h, c)
-        gilt = (d < 1.4) | (d > 30.4)
-        col = np.where(gilt[..., None], rgb(0.72, 0.62, 0.40), col)
-        pu, pv = c["u"] - 15.5, c["v"] - 15.5
-        r = np.hypot(pu, pv)
-        ang = np.arctan2(pv, pu)
-        pad = (r < 8.5) & ~((ang > 0.55) & (ang < 1.05))
-        flower = np.hypot(pu + 3, pv + 3) < 2.6
-        col = np.where(pad[..., None], mix(rgb(0.30, 0.52, 0.30), rgb(0.46, 0.66, 0.38), np.clip(1 - r / 8.5, 0, 1)), col)
-        col = np.where(flower[..., None], rgb(0.95, 0.70, 0.78), col)
-        h = np.where(pad | flower, 1.5 + 0.5 * flower, h)
-        return {"height": h, "color": col, "spec": 0.2, "shine": 12}
-    return piece
+    for _ in range(110):
+        pd, pa = rng.uniform(FIELD[0], FIELD[1]), rng.uniform(0, FL)
+        m = np.clip(1 - np.hypot((dd - pd) / 1.4, wrapped(aa - pa, FL) / 3.4), 0, 1)
+        dabs += rng.uniform(-1, 1) * np.clip(m * 2.5, 0, 1)
+    def motif(c, f):
+        v = at(dabs, c)
+        return 0.25 * v, 0.06 * v
+    return make_frame(motif, "ring")
 
 
 def frame_scream(rng):
-    # The Scream: wavering bands of orange, yellow, blood red and blue running round a rounded frame
-    streak = strip_field(rng, 12, 0)
-    stops = [rgb(0.91, 0.42, 0.17), rgb(0.95, 0.68, 0.35), rgb(0.55, 0.13, 0.09), rgb(0.18, 0.23, 0.44), rgb(0.85, 0.50, 0.22)]
-    def piece(c):
+    # The Scream: wavering lines engraved along the field
+    def motif(c, f):
         d, a = c["d"], c["a"]
-        ph = (d + 3.2 * np.cos(2 * np.pi * a / 64) + 1.4 * np.cos(2 * np.pi * a / 32)) / 5.5
-        i = np.floor(ph).astype(int) % len(stops)
-        f = ph - np.floor(ph)
-        t = np.clip((f - 0.7) / 0.3, 0, 1)
-        col = mix(np.stack(stops)[i], np.stack(stops)[(i + 1) % len(stops)], t)
-        col = col * (0.85 + 0.25 * at(streak, c))[..., None]
-        h = 1.4 * dome((d - 16) / 15.5) + 0.3 * np.sin(ph * 2 * np.pi)
-        rim = (d < 1.3) | (d > 30.6)
-        col = np.where(rim[..., None], rgb(0.16, 0.10, 0.08), col)
-        return {"height": h, "color": col, "spec": 0.15, "shine": 10}
-    return piece
+        ph = (d + 2.4 * np.cos(2 * np.pi * a / 64) + 1.0 * np.cos(2 * np.pi * a / 32)) / 4.0
+        line = np.abs(ph - np.round(ph)) < 0.12
+        return -0.3 * line, -0.08 * line
+    return make_frame(motif, "ring")
 
 
 def frame_mondrian(rng):
-    # Composition II: flat white, black bars, and a block of primary colour in each corner and
-    # along each side
-    tooth = strip_field(rng, 1, 1)
-    sides = {"top": rgb(0.83, 0.04, 0.12), "bottom": rgb(0.07, 0.34, 0.64), "left": rgb(0.97, 0.85, 0.26), "right": rgb(0.95, 0.95, 0.92)}
-    corners = {"tl": rgb(0.07, 0.34, 0.64), "tr": rgb(0.97, 0.85, 0.26), "bl": rgb(0.83, 0.04, 0.12), "br": rgb(0.95, 0.95, 0.92)}
-    def piece(c):
+    # Composition II: the field divided into panels by cut lines, some panels a shade deeper
+    tones = rng.uniform(-0.07, 0.07, size=6)
+    def motif(c, f):
         d, a = c["d"], c["a"]
-        white = rgb(0.95, 0.94, 0.89)
-        col = np.zeros(d.shape + (3,)) + white
-        if c["corner"]:
-            col[:] = corners[c["piece"]]
-        else:
-            seg = band(nearest(a, 128, 63), -21, 21, 0.5)
-            col = mix(col, sides[c["side"]], seg)
-        black = band(d, -1, 2.6, 0.5) + band(d, 27, 40, 0.5)
-        black = black + np.where(c["corner"], 0, band(nearest(a, 128), -1.6, 1.6, 0.5)
-                                 + band(nearest(a, 128, 41), -1.6, 1.6, 0.5) + band(nearest(a, 128, 86), -1.6, 1.6, 0.5))
-        black = black + (np.asarray(c["corner"]) * band(np.maximum(c["u"], c["v"]), 30.4, 40, 0.5))
-        col = mix(col, rgb(0.08, 0.08, 0.08), np.clip(black, 0, 1))
-        col = col * (0.95 + 0.08 * at(tooth, c))[..., None]
-        return {"height": 0.2 * at(tooth, c), "color": col, "spec": 0.0}
-    return piece
+        cuts = band(nearest(a, 128), -0.6, 0.6, 0.4) + band(nearest(a, 128, 41), -0.6, 0.6, 0.4) \
+            + band(nearest(a, 128, 86), -0.6, 0.6, 0.4)
+        cuts = np.where(np.asarray(c["corner"]), 0, cuts) + band(d, 15.8, 16.6, 0.4) * (np.floor((a % 128) / 41) == 1)
+        seg = (np.floor((a % 128) / 43).astype(int) + 3 * (d > 16.2)) % 6
+        cut = np.clip(cuts, 0, 1)
+        return -0.35 * cut, tones[seg] - 0.12 * cut
+    return make_frame(motif, "square")
 
 
 def frame_nighthawks(rng):
-    # Nighthawks: diner trim - a chrome roll, green enamel, and a strip of warm light inside
-    def piece(c):
+    # Nighthawks: smooth diner trim with a polished inlaid strip down the middle
+    def motif(c, f):
         d = c["d"]
-        chrome = d < 6
-        h = 1.8 * dome((d - 3) / 3) + 1.0 * band(d, 6, 20.5) + 0.6 * dome((d - 31) / 1.2)
-        col = np.zeros(d.shape + (3,)) + rgb(0.13, 0.30, 0.27)
-        col = np.where(chrome[..., None], rgb(0.74, 0.76, 0.80), col)
-        col = np.where((d > 25.5)[..., None], rgb(0.08, 0.07, 0.06), col)
-        col = np.where((d > 30.2)[..., None], rgb(0.70, 0.72, 0.76), col)
-        lamp = band(d, 21, 25, 0.6)
-        col = mix(col, rgb(0.98, 0.90, 0.64), lamp)
-        emit = rgb(0.45, 0.34, 0.14) * np.exp(-((d - 23) / 4.5) ** 2)[..., None]
-        spec = np.where(chrome | (d > 30.2), 1.0, 0.45)
-        return {"height": h, "color": col, "spec": spec, "shine": 28, "emit": emit}
-    return piece
+        strip = band(d, 14.6, 18.0, 0.5)
+        grooves = band(d, 13.6, 14.4, 0.4) + band(d, 18.2, 19.0, 0.4)
+        return 0.2 * strip - 0.3 * grooves, 0.10 * strip - 0.1 * grooves
+    return make_frame(motif, "ring")
 
 
-# key (the palette surface key, or "brass" for the start look), maker, seed, rounded corners
+# key (the palette surface key, or "brass" for the start look), maker, seed
 FRAME_STYLES = [
-    ("brass", frame_brass, 201, False),
-    ("starry", frame_starry, 202, False),
-    ("wave", frame_wave, 203, False),
-    ("kiss", frame_kiss, 204, False),
-    ("lilies", frame_lilies, 205, False),
-    ("scream", frame_scream, 206, True),
-    ("mondrian", frame_mondrian, 207, False),
-    ("nighthawks", frame_nighthawks, 208, True),
-    ("memory", frame_memory, 209, False),
-    ("copper", frame_copper, 210, False),
-    ("neon", frame_neon, 211, True),
-    ("ironforge", frame_ironforge, 212, False),
-    ("verdigris", frame_verdigris, 213, False),
-    ("blueprint", frame_blueprint, 214, False),
+    ("brass", frame_brass, 201),
+    ("starry", frame_starry, 202),
+    ("wave", frame_wave, 203),
+    ("kiss", frame_kiss, 204),
+    ("lilies", frame_lilies, 205),
+    ("scream", frame_scream, 206),
+    ("mondrian", frame_mondrian, 207),
+    ("nighthawks", frame_nighthawks, 208),
+    ("memory", frame_memory, 209),
+    ("copper", frame_copper, 210),
+    ("neon", frame_neon, 211),
+    ("ironforge", frame_ironforge, 212),
+    ("verdigris", frame_verdigris, 213),
+    ("blueprint", frame_blueprint, 214),
 ]
 
 
 def frames():
-    for key, make, seed, rounded in FRAME_STYLES:
+    for key, make, seed in FRAME_STYLES:
         folder = OUT / "frames" / key
         folder.mkdir(parents=True, exist_ok=True)
         piece = make(np.random.default_rng(seed))
         for name in FRAME_PIECES:
-            c = piece_coords(name, rounded)
+            c = piece_coords(name, False)
             img = light(c, piece(c))
             Image.fromarray((img * 255).round().astype(np.uint8), "RGBA").save(folder / (name + ".tga"))
 
