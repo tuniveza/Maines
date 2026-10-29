@@ -33,8 +33,8 @@ FONTS = {
     "agave_bold": {"path": os.path.join(ROOT, "fonts/agave/Agave-Bold.ttf")},
     # WoW's engraved quest-title face -> Cinzel (OFL, tools/fonts/)
     "morpheus": {"path": os.path.join(ROOT, "tools/fonts/Cinzel.ttf"), "variation": b"Bold"},
-    # Arial Narrow is Arial at ~82% width -> Liberation Sans (Arial-metric) squeezed to 82%
-    "arialn": {"path": LIB_SANS, "squeeze": 0.82},
+    # Arial Narrow -> Liberation Sans Narrow (same glyph widths; tools/fonts/, GPLv2 + font exception)
+    "arialn": {"path": os.path.join(ROOT, "tools/fonts/LiberationSansNarrow-Regular.ttf")},
     "friz": {"path": LIB_SANS},
 }
 

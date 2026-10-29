@@ -3,11 +3,11 @@
 
 Every bit of chat text the addon produces comes from the real add-on code, run offline by
 tools/media_chat.lua (through tests/wowmock.lua). This script only draws it in a WoW-like chat
-frame. Run from anywhere:  python3 tools/media_chat.py   (needs lua5.1, Pillow, fontTools)
+frame. Run from anywhere:  python3 tools/media_chat.py   (needs lua5.1, Pillow)
 
 The chat font: WoW's English chat font is Arial Narrow (Fonts/ARIALN.TTF, ChatFontNormal, 14pt,
-with a drop shadow). It isn't shipped here, so Liberation Sans (Arial-metric) is condensed to
-82% width with fontTools as a stand-in. Badge rows are fitted to that font's measured glyph
+with a drop shadow). It isn't shipped here, so Liberation Sans Narrow (tools/fonts/, GPLv2 + font
+exception), which has Arial Narrow's exact glyph widths, stands in. Badge rows are fitted to that font's measured glyph
 widths by badges.lua's own FitBadgeLines, exactly like the game does against Arial Narrow.
 """
 import json
@@ -22,13 +22,13 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "docs", "media")
 LIB_SANS = "/usr/share/fonts/liberation/LiberationSans-Regular.ttf"
+NARROW_FONT = os.path.join(ROOT, "tools", "fonts", "LiberationSansNarrow-Regular.ttf")
 AGAVE_BOLD = os.path.join(ROOT, "fonts", "agave", "Agave-Bold.ttf")
 AGAVE = os.path.join(ROOT, "fonts", "agave", "Agave-Regular.ttf")
 NBSP = " "
 
 CHAT_PX = 17          # chat text size in pixels
 LINE_H = 20           # chat line spacing
-NARROW = 0.82         # Arial Narrow is ~82% the width of Arial
 
 # WoW's default chat colours (ChatTypeInfo)
 COL = {
@@ -51,37 +51,8 @@ STYLE_LABEL = {"brackets": "Bracket cycle", "typewriter": "Typewriter",
 
 # ------------------------------------------------------------------ fonts
 def narrow_font_path():
-    """Liberation Sans squeezed to Arial Narrow proportions (cached)."""
-    cache = os.path.join(os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache")), "maines-media")
-    path = os.path.join(cache, "LiberationSans-Narrowed.ttf")
-    if os.path.exists(path):
-        return path
-    from fontTools.ttLib import TTFont
-    f = TTFont(LIB_SANS)
-    glyf, hmtx = f["glyf"], f["hmtx"]
-    for name in f.getGlyphOrder():
-        g = glyf[name]
-        if g.isComposite():
-            for c in g.components:
-                c.x = round(c.x * NARROW)
-        elif g.numberOfContours > 0:
-            g.coordinates.scale((NARROW, 1))
-            g.coordinates.toInt()
-        if hasattr(g, "program"):
-            from fontTools.ttLib.tables import ttProgram
-            g.program = ttProgram.Program()
-            g.program.fromBytecode(b"")
-    for name in f.getGlyphOrder():
-        g = glyf[name]
-        g.recalcBounds(glyf)
-        adv, _ = hmtx[name]
-        hmtx[name] = (round(adv * NARROW), getattr(g, "xMin", 0))
-    for t in ("fpgm", "prep", "cvt ", "hdmx", "LTSH", "VDMX", "kern", "GPOS"):
-        if t in f:
-            del f[t]
-    os.makedirs(cache, exist_ok=True)
-    f.save(path)
-    return path
+    """Liberation Sans Narrow: open, and metric-compatible with Arial Narrow (same glyph widths)."""
+    return NARROW_FONT
 
 
 CHAT_FONT = None

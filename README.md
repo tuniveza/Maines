@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://github.com/tuniveza/Maines/releases/latest"><img src="https://img.shields.io/badge/stamp-GLYPH-8B5E3C" alt="Current stamp: GLYPH"></a>
   <img src="https://img.shields.io/badge/WoW-12.1.5%20(Midnight)-3E6E96" alt="WoW 12.1.5 (Midnight)">
-  <a href="https://www.curseforge.com/projects/1721025"><img src="https://img.shields.io/badge/CurseForge-Maines-F16436" alt="Maines on CurseForge"></a>
+  <a href="https://www.curseforge.com/wow/addons/maines"><img src="https://img.shields.io/badge/CurseForge-Maines-F16436" alt="Maines on CurseForge"></a>
   <img src="https://img.shields.io/badge/built%20on-Ace3-C9A227" alt="Built on Ace3">
 </p>
 

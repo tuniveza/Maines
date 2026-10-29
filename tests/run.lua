@@ -450,6 +450,9 @@ test("9b. badge fitting: symbols land back on their columns in a proportional fo
     local nudged = ns.FitBadgeLines({ "+-+", "/||" }, width)[2]
     ok(nudged:find("/[\194\160]+||$"), "'/|' corner gets a gap: " .. nudged)
     eq(ns.FitBadgeLines({ "@@", "[]" }, width)[2], "[]", "brackets left touching")
+    -- a one-row picture has nothing to line up with, so its runs aren't stretched
+    eq(ns.FitBadgeLines({ "@}-,-'--" }, width)[1], "@}-,-'--", "one-row badge (Rose) sent as drawn")
+    eq(ns.FitBadgeLines({ "  <3" }, width)[1], "\194\160\194\160<3", "one-row badge keeps its leading spaces")
 end)
 
 test("10. Bindings.xml: every binding's code compiles and its function and name exist", function()

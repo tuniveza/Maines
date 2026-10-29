@@ -221,6 +221,13 @@ end
 -- lines: escaped badge rows. width(symbol) -> pixels. Returns the fitted rows, spaces as
 -- no-break spaces (they keep their width at the start of a line too).
 function ns.FitBadgeLines(lines, width)
+    -- A one-row picture has no other row to line up with, so it goes out as drawn. (Putting it
+    -- on the grid would only stretch its runs: the Rose's "--" stem came out as ~15 dashes.)
+    if #lines < 2 then
+        local out = {}
+        for i, line in ipairs(lines) do out[i] = ChatLine(line) end
+        return out
+    end
     local rows, cell = {}, 0
     for i, line in ipairs(lines) do rows[i] = Glyphs(line) end
     for _, g in ipairs(rows) do
@@ -518,6 +525,9 @@ y = y - intro:GetStringHeight() - 10
 
 -- Left: the list of badges (presets, then your own).
 local LIST_W, LIST_H = 150, 276
+-- Rows are 22 tall, one every 24: the 268-tall list shows 11 whole rows (10 presets + 1 of
+-- yours) before it needs to scroll, instead of cutting the 11th row off at the bottom.
+local ROW_H, ROW_STEP = 22, 24
 local listFrame = CreateFrame("Frame", nil, panel, "BackdropTemplate")
 listFrame:SetPoint("TOPLEFT", 0, y)
 listFrame:SetSize(LIST_W, LIST_H)
@@ -662,8 +672,8 @@ table.insert(ns.RefreshHooks, function()
     for i, b in ipairs(all) do
         local btn = listButtons[i]
         if not btn then
-            btn = ns.MakeButton(listChild, LIST_W - 30, 22, "")
-            btn:SetPoint("TOPLEFT", 0, -(i - 1) * 25)
+            btn = ns.MakeButton(listChild, LIST_W - 30, ROW_H, "")
+            btn:SetPoint("TOPLEFT", 0, -(i - 1) * ROW_STEP)
             listButtons[i] = btn
         end
         btn:SetText(b.custom and ("* " .. b.name) or b.name)
@@ -673,7 +683,7 @@ table.insert(ns.RefreshHooks, function()
         btn:Show()
     end
     for i = #all + 1, #listButtons do listButtons[i]:Hide() end
-    listChild:SetHeight(math.max(1, #all * 25))
+    listChild:SetHeight(math.max(1, (#all - 1) * ROW_STEP + ROW_H))
 
     -- Same font as the chat window and the same fitted rows that would be sent.
     local font, size, flags = ChatFontParts()
