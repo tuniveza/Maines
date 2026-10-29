@@ -199,9 +199,10 @@ def draw_texture(cv, item):
         else:
             im = Image.fromarray((src * 255).astype(np.uint8), "RGBA").resize((pw, ph), Image.BICUBIC)
             img = np.asarray(im, np.float32) / 255.0
-        if item.get("desaturated"):
+        desat = 1.0 if item.get("desaturated") else float(item.get("desaturation") or 0)
+        if desat > 0:
             lum = img[..., :3] @ np.array([0.3, 0.59, 0.11], np.float32)
-            img[..., :3] = lum[..., None]
+            img[..., :3] = img[..., :3] * (1 - desat) + lum[..., None] * desat
     img = img * vertex_colors(item, pw, ph)
     ox, oy = ix0, iy0
     rot = item.get("rotation")

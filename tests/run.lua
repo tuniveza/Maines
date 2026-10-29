@@ -567,8 +567,11 @@ test("15. the full-colour icons are never tinted: tabs dim instead, /maincolor l
                 t .. " tinted to " .. q(vc[1]) .. "," .. q(vc[2]) .. "," .. q(vc[3]))
             local btn = o._parent
             if btn and btn.SetSelected then
-                local want = btn.selected and 1 or 0.72
+                local want = btn.selected and 1 or 0.85
                 ok(math.abs(vc[1] - want) < 1e-6, t .. " brightness " .. q(vc[1]) .. ", want " .. want)
+                local ds = (o._set.SetDesaturation or {0})[1]
+                local wantDs = btn.selected and 0 or 0.45
+                ok(math.abs(ds - wantDs) < 1e-6, t .. " desaturation " .. q(ds) .. ", want " .. wantDs)
                 ok((o._alpha or 1) == 1, t .. " alpha " .. q(o._alpha))
             end
         end

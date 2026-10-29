@@ -486,6 +486,7 @@ local function textureItem(t, r)
     if t._set.SetHorizTile and t._set.SetHorizTile[1] then item.htile = true end
     if t._set.SetVertTile and t._set.SetVertTile[1] then item.vtile = true end
     if t._set.SetDesaturated and t._set.SetDesaturated[1] then item.desaturated = true end
+    if t._set.SetDesaturation then item.desaturation = t._set.SetDesaturation[1] end
     item.alpha = t._alpha or 1
     return item
 end
