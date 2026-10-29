@@ -469,7 +469,7 @@ def blend(a, b, t):
     return a * (1 - t) + b * t
 
 
-def save_gif(path, frames, durations, width=760):
+def save_gif(path, frames, durations, width=1480):
     small = []
     for f in frames:
         im = to_image(f)
@@ -582,7 +582,7 @@ def main():
             to_image(frame).save(os.path.join(keep, "palette-%02d.png" % i))
         tiles.append(frame)
         i += 1
-    tw, cols = 640, 2
+    tw, cols = 1000, 2
     small = []
     for t in tiles:
         im = to_image(t)
