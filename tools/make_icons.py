@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
 """Rebuilds Maines' icons (run from anywhere: python3 tools/make_icons.py).
 
-textures/icons/<name>.tga  - 128x128 cut-out icons on transparent, painted in the manner of WoW
+textures/icons/<name>.tga  - 256x256 cut-out icons on transparent, painted in the manner of WoW
                              ability icons (original art): brass, parchment, wood, slate and
                              glowing gems, lit from the top left with a rim light and bloom, a
                              dark outline and a soft drop shadow so each reads on parchment and
                              on any tab-bar colour. The addon draws them untinted (an unselected
                              tab only desaturates and dims them a little).
 textures/logo.tga          - 64x64 full-colour brass medallion with an ink "M" (minimap / addon list)
-textures/icons/preview.png - contact sheet at 64/30/20 px on parchment, wood and a coloured bar
+textures/icons/preview.png - contact sheet at 64/32/30 px on parchment, wood and a coloured bar
                              (dev only, not shipped)
 
-Every shape is a signed distance field in 64-unit icon space, painted at 512x512: seeded
+Every shape is a signed distance field in 64-unit icon space, painted at 1024x1024: seeded
 value-noise textures, normals from the shape's rounded edge for lighting, blurred shadows and
-bloom, then LANCZOS down to 128 px with a light unsharp mask. All noise uses fixed seeds, so
-the output is fully reproducible.
+bloom, then LANCZOS down to 256 px with a light unsharp mask; the colour of transparent
+pixels is bled out from the edge so mipmaps never pick up a foreign fringe. All noise uses
+fixed seeds, so the output is fully reproducible.
 """
 from pathlib import Path
 
@@ -26,13 +27,23 @@ TEX = ROOT / "textures"
 ICONS = TEX / "icons"
 
 SIZE = 64          # design space (and the logo's size); icons are written at ICON_OUT
-SS = 8             # supersampling factor
+SS = 8             # supersampling factor (canvas px per icon unit; see set_res)
+SS_LOGO = SS
 N = SIZE * SS      # 512 working canvas
 W = 6.5            # main stroke weight in icon px (~10% of 64)
 H = W / 2
 
 # pixel-centre coordinates in icon units
 PY, PX = (np.mgrid[0:N, 0:N] + 0.5) / SS
+
+
+def set_res(ss, zoom=1.0):
+    """Working resolution: ss canvas px per icon unit (icons 16 -> 1024 px, the logo 8 -> 512).
+    zoom > 1 views a little more than the 64-unit square, a margin so shadows and glows fade
+    out before the texture's edge instead of being cut off there."""
+    global SS, N, PX, PY
+    SS, N = ss, SIZE * ss
+    PY, PX = 32 + ((np.mgrid[0:N, 0:N] + 0.5) / SS - 32) * zoom
 
 
 # ---------------------------------------------------------------- distance primitives
@@ -175,7 +186,12 @@ def blur(a, sigma):
 
 
 def shifted(a, dx, dy):
-    return np.roll(np.roll(a, int(round(dy * SS)), axis=0), int(round(dx * SS)), axis=1)
+    """Moves a field by (dx, dy) icon px; what slides in from the edge is the edge value
+    (never wrapped round from the opposite side)."""
+    oy, ox = int(round(dy * SS)), int(round(dx * SS))
+    h, w = a.shape[:2]
+    b = np.pad(a, ((abs(oy),) * 2, (abs(ox),) * 2) + ((0, 0),) * (a.ndim - 2), mode="edge")
+    return b[abs(oy) - oy:abs(oy) - oy + h, abs(ox) - ox:abs(ox) - ox + w]
 
 
 class rotated:
@@ -238,7 +254,9 @@ def lit(d, base, radius=4.0, tex=None, tex_amp=0.3, amb=0.3, diff=0.95, spec=0.3
     return col + (rl * rim)[..., None] * np.asarray(rim_col, float)
 
 
-ICON_OUT = 128     # icon textures are 128x128 (designed in 64-unit space, 4x supersampled)
+ICON_OUT = 256     # icon textures are 256x256 (designed in 64-unit space)
+ICON_SS = 16       # painted at 1024x1024: 4x supersampled
+ICON_ZOOM = 1.08   # 4% margin all round for shadows and glows
 OUTLINE = (20, 12, 7)
 OL = 1.7           # dark outline round each icon's silhouette, in 64-unit px
 
@@ -296,9 +314,28 @@ class Painter:
         out = np.dstack([np.clip(down(rgb[..., i] * a) / np.maximum(ad, 1e-6), 0, 255) for i in range(3)])
         out[ad < 1 / 255] = OUTLINE
         img = Image.fromarray(out.round().astype(np.uint8), "RGB")
-        img = img.filter(ImageFilter.UnsharpMask(radius=1.0, percent=40, threshold=0))
-        img.putalpha(Image.fromarray((ad * 255).round().astype(np.uint8), "L"))
-        return img
+        img = img.filter(ImageFilter.UnsharpMask(radius=1.4, percent=35, threshold=0))
+        alpha = (ad * 255).round().astype(np.uint8)
+        return Image.fromarray(np.dstack([bleed(np.asarray(img, float), alpha), alpha]), "RGBA")
+
+
+def bleed(rgb, alpha):
+    """Fills the colour of fully transparent pixels from their visible neighbours, so mipmaps
+    and bilinear filtering (which mix colour without alpha weighting) never pull a foreign
+    colour into the edge."""
+    a = alpha.astype(float) / 255
+    out = rgb.copy()
+    todo = alpha == 0
+    pm = Image.fromarray((rgb * a[..., None]).round().astype(np.uint8), "RGB")
+    al = Image.fromarray(alpha, "L")
+    for r in (1, 2, 4, 8, 16, 32):
+        num = np.asarray(pm.filter(ImageFilter.GaussianBlur(r)), float)
+        den = np.asarray(al.filter(ImageFilter.GaussianBlur(r)), float)[..., None] / 255
+        ok = todo & (den[..., 0] > 0.004)
+        out[ok] = np.clip(num[ok] / den[ok], 0, 255)
+        todo &= ~ok
+    out[todo] = OUTLINE
+    return out.round().astype(np.uint8)
 
 
 # ---------------------------------------------------------------- materials (rich, a little muted)
@@ -598,13 +635,22 @@ def dimmed(ic, desat=0.45, dim=0.85):
     return out
 
 
+def mipped(ic, s):
+    """Straight-alpha box mip chain down to the level just above s, then bilinear (as a GPU)."""
+    arr = np.asarray(ic, float)
+    while arr.shape[0] >= 2 * s:
+        arr = (arr[0::2, 0::2] + arr[1::2, 0::2] + arr[0::2, 1::2] + arr[1::2, 1::2]) / 4
+    return Image.fromarray(arr.round().astype(np.uint8), "RGBA").resize((s, s), Image.BILINEAR)
+
+
 def make_preview(icons, logo):
-    """Each icon on parchment (selected tab), dark wood and a palette-coloured bar, at 64, 30
-    (tab), 20 px and 30 px blown up x3; the last row of the bar panels is the dimmed look."""
+    """Each icon on parchment (selected tab), dark wood and a palette-coloured bar, at 64, 32 and
+    30 px (tab), 30 px the way a GPU gets there ("mip": box mip chain without alpha weighting,
+    then bilinear), and 30 px blown up x3; the last row of the bar panels is the dimmed look."""
     names = list(icons) + ["logo"]
     icons = dict(icons, logo=logo)
     cell = 100
-    rows = [(64, 76, False), (30, 40, False), (20, 30, False), ("zoom", 96, False)]
+    rows = [(64, 76, False), (32, 44, False), (30, 40, False), ("mip", 40, False), ("zoom", 96, False)]
     panels = [(BG_PARCH, FG_INK, "parchment (selected tab)", rows),
               (BG_WOOD, FG_CREAM, "dark wood tab bar; last row = unselected tab (desaturated, dimmed)",
                rows + [(30, 40, True)]),
@@ -620,8 +666,8 @@ def make_preview(icons, logo):
         for size, h, dim in prows:
             for i, name in enumerate(names):
                 x = 10 + i * cell
-                s = 30 if size == "zoom" else size
-                ic = icons[name].resize((s, s), Image.LANCZOS)
+                s = 30 if size in ("zoom", "mip") else size
+                ic = mipped(icons[name], s) if size == "mip" else icons[name].resize((s, s), Image.LANCZOS)
                 if dim and name != "logo":
                     ic = dimmed(ic)
                 if size == "zoom":
@@ -640,10 +686,12 @@ def make_preview(icons, logo):
 
 if __name__ == "__main__":
     ICONS.mkdir(parents=True, exist_ok=True)
+    set_res(ICON_SS, ICON_ZOOM)
     icons = {}
     for name, fn in ICON_DEFS.items():
         icons[name] = make_icon(fn)
-        icons[name].save(ICONS / f"{name}.tga")
+        icons[name].save(ICONS / f"{name}.tga")      # 32-bit uncompressed, straight 8-bit alpha
+    set_res(SS_LOGO)
     logo = make_logo()
     logo.save(TEX / "logo.tga")
     make_preview(icons, logo).save(ICONS / "preview.png")

@@ -548,7 +548,7 @@ local function Maines_SurfacePath(key, role)
 end
 local Palette_ByName = {}
 for _, palette in ipairs(Color_Palettes) do Palette_ByName[palette.name] = palette end
--- Maines' own painted cut-out icons (tools/make_icons.py, 128x128, WoW ability-icon style with
+-- Maines' own painted cut-out icons (tools/make_icons.py, 256x256, WoW ability-icon style with
 -- their own outline and drop shadow). Never tinted a colour and never registered for /maincolor
 -- (an unselected tab only desaturates and dims its icon a little).
 local ICONS = TEXTURES .. "icons\\"
@@ -1326,10 +1326,12 @@ local function Maines_MakeNavButton(parent, width, height, text, iconPath)
 
     -- Painted cut-out icon (its outline and drop shadow are in the texture), never tinted: the
     -- open tab shows it in full colour, the others a little greyer and darker, hover restores it.
+    -- 256px source, clamped and trilinear (mipmapped) so it shrinks cleanly; the full texture
+    -- (no texcoord inset), a whole-unit size and a whole-unit offset from the tab's left edge.
     local icon = btn:CreateTexture(nil, "ARTWORK")
     icon:SetSize(NAV_ICON.size, NAV_ICON.size)
-    icon:SetTexture(iconPath)
-    icon:SetPoint("TOP", 0, -2)
+    icon:SetTexture(iconPath, "CLAMP", "CLAMP", "TRILINEAR")
+    icon:SetPoint("TOPLEFT", math.floor((width - NAV_ICON.size) / 2), -2)
     btn.icon = icon
     local function iconLook(full)
         local v = full and 1 or NAV_ICON.dim
