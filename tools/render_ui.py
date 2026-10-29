@@ -38,7 +38,7 @@ FONTS = {
     "newrocker": {"path": os.path.join(ROOT, "fonts/newrocker/NewRocker-Regular.ttf")},
     "vollkornsc": {"path": os.path.join(ROOT, "fonts/vollkornsc/VollkornSC-Bold.ttf")},
     "fira_semibold": {"path": os.path.join(ROOT, "fonts/firasans/FiraSans-SemiBold.ttf")},
-    "breeserif": {"path": os.path.join(ROOT, "fonts/breeserif/BreeSerif-Regular.ttf")},
+    "fira_bold": {"path": os.path.join(ROOT, "fonts/firasans/FiraSans-Bold.ttf")},
     # WoW's engraved quest-title face -> Cinzel (OFL, tools/fonts/)
     "morpheus": {"path": os.path.join(ROOT, "tools/fonts/Cinzel.ttf"), "variation": b"Bold"},
     # Arial Narrow -> Liberation Sans Narrow (same glyph widths; tools/fonts/, GPLv2 + font exception)

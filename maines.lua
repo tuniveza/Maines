@@ -473,7 +473,8 @@ end
 --   New Rocker      - the window/help titles (a heavy, flared fantasy display face)
 --   Vollkorn SC     - section headings (sturdy engraved small caps)
 --   Fira Sans       - labels, body and help text (SemiBold: the Medium weight read thin in game)
---   Bree Serif      - buttons and tabs (a chunky, friendly slab)
+--   Fira Sans Bold  - buttons, tabs, the status line and text boxes (Bree Serif read thin in game;
+--                     subset with tools/subset_font.py, kerning kept as an old-style kern table)
 -- Sizes are a comfortable medium: body 14, small 12, labels 15, buttons 14, headings 19. The tab
 -- labels keep their own 13 so they still fit under the tab icons.
 -- Falls back to Blizzard's own FRIZQT__ if a font file is ever missing for some reason (a
@@ -486,7 +487,8 @@ do
     local FONT_DISPLAY = FONT_DIR .. "newrocker\\NewRocker-Regular.ttf"
     local FONT_HEADING = FONT_DIR .. "vollkornsc\\VollkornSC-Bold.ttf"
     local FONT_LABEL = FONT_DIR .. "firasans\\FiraSans-SemiBold.ttf"
-    local FONT_BUTTON = FONT_DIR .. "breeserif\\BreeSerif-Regular.ttf"
+    -- buttons, tabs, the status line and text boxes: the heaviest weight, so they read thick and clear
+    local FONT_BUTTON = FONT_DIR .. "firasans\\FiraSans-Bold.ttf"
 
     local function make(name, path, size)
         local font = CreateFont(name)
@@ -506,6 +508,8 @@ do
     Maines_Font_Tab = make("Maines_Font_Tab", FONT_BUTTON, 13)
     -- the status line's readout face: the chunky slab, a little larger than body text
     Maines_Font_Status = make("Maines_Font_Status", FONT_BUTTON, 15)
+    -- what you type into the name, bracket, phrase and badge-name boxes
+    ns.InputFont = make("Maines_Font_Input", FONT_BUTTON, 14)
 end
 
 -- The spacing scale every page lays out with (UI units): xs 4, s 8, m 12, l 16, xl 24.
@@ -2102,6 +2106,7 @@ function maines:SetupMinimapIcon()
         type = "launcher",
         text = "Maines",
         icon = LOGO_TEXTURE,
+        iconCoords = {-0.0556, 1.0556, -0.0556, 1.0556},
         OnClick = function(_, button)
             if button == "LeftButton" then
                 Maines_ToggleMainWindow()
@@ -2126,6 +2131,15 @@ function maines:SetupMinimapIcon()
     icon:Refresh("Maines", Maines_DB.minimap)
     local button = icon:GetMinimapButton("Maines")
     if button then
+        -- LibDBIcon lays a 17px icon at the top-left of its 20px dark backing disc (made for
+        -- square icons with their own margin), so the round medallion left a dark crescent
+        -- between itself and the gold ring. Centre it on the disc and size it to cover it.
+        -- (The library also trims 5% off each side of the texture at rest; iconCoords below
+        -- are widened by that much so the medallion's rim isn't clipped flat.)
+        -- (LibDBIcon puts the 20px disc at TOPLEFT +7,-5, so its centre is +17,-15.)
+        button.icon:ClearAllPoints()
+        button.icon:SetPoint("CENTER", button, "TOPLEFT", 17, -15)
+        button.icon:SetSize(21, 21)
         table.insert(Maines_Textures, button.icon)
         Maines_AnimateMinimapButton(button)
     end
@@ -2651,7 +2665,7 @@ ns.Sheen = Maines_Look.SHEEN
 ns.TabBar, ns.FooterBar = tabBar, footerBar
 ns.Fonts = {
     Title = ns.TitleFont, Header = Maines_Font_Header, Body = Maines_Font_Body,
-    BodySmall = Maines_Font_BodySmall, Button = Maines_Font_Button,
+    BodySmall = Maines_Font_BodySmall, Button = Maines_Font_Button, Input = ns.InputFont,
 }
 ns.Colors = {
     INK = INK, INK_SOFT = INK_SOFT, ACCENT = ACCENT, CONTENT_BG = CONTENT_BG, PLATE_BG = PLATE_BG,
@@ -2727,6 +2741,7 @@ do
     my = my - nameLabel:GetStringHeight() - SP.s
 
     local nameBox = CreateFrame("EditBox", nil, mainPanel, "InputBoxTemplate")
+    nameBox:SetFontObject(ns.InputFont)
     nameBox:SetSize(260, INPUT_H)
     nameBox:SetAutoFocus(false)
     nameBox:SetJustifyH("CENTER")
@@ -2794,10 +2809,12 @@ do
     -- The two symbol boxes are centred as one unit (56 + l gap + 56), not left-hung.
     local CUSTOM_W = 56
     customLeft = CreateFrame("EditBox", nil, mainPanel, "InputBoxTemplate")
+    customLeft:SetFontObject(ns.InputFont)
     customLeft:SetSize(CUSTOM_W, INPUT_H)
     customLeft:SetAutoFocus(false)
     customLeft:SetJustifyH("CENTER")
     customRight = CreateFrame("EditBox", nil, mainPanel, "InputBoxTemplate")
+    customRight:SetFontObject(ns.InputFont)
     customRight:SetSize(CUSTOM_W, INPUT_H)
     customRight:SetAutoFocus(false)
     customRight:SetJustifyH("CENTER")

@@ -20,8 +20,8 @@ local function fontKey(path)
     local p = tostring(path or ""):lower()
     if p:find("newrocker") then return "newrocker" end
     if p:find("vollkornsc") then return "vollkornsc" end
+    if p:find("firasans%-bold") then return "fira_bold" end
     if p:find("firasans") then return "fira_semibold" end
-    if p:find("breeserif") then return "breeserif" end
     if p:find("morpheus") then return "morpheus" end
     if p:find("arialn") then return "arialn" end
     return "friz"

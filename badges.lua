@@ -599,6 +599,7 @@ local rowW = nameLabel:GetStringWidth() + SP.s + NAME_W + SP.m + 2 * EDIT_BTN_W 
 local rowX = math.floor((W - rowW) / 2)
 nameLabel:SetPoint("TOPLEFT", rowX, y - (ns.BUTTON_H - nameLabel:GetStringHeight()) / 2)
 local nameBox = CreateFrame("EditBox", nil, panel, "InputBoxTemplate")
+nameBox:SetFontObject(ns.Fonts.Input)
 nameBox:SetSize(NAME_W, ns.INPUT_H)
 nameBox:SetPoint("TOPLEFT", rowX + nameLabel:GetStringWidth() + SP.s, y - (ns.BUTTON_H - ns.INPUT_H) / 2)
 nameBox:SetAutoFocus(false)

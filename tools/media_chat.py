@@ -25,7 +25,7 @@ OUT = os.path.join(ROOT, "docs", "media")
 LIB_SANS = "/usr/share/fonts/liberation/LiberationSans-Regular.ttf"
 NARROW_FONT = os.path.join(ROOT, "tools", "fonts", "LiberationSansNarrow-Regular.ttf")
 UI_BOLD = os.path.join(ROOT, "fonts", "firasans", "FiraSans-SemiBold.ttf")    # labels
-UI_BUTTON = os.path.join(ROOT, "fonts", "breeserif", "BreeSerif-Regular.ttf")  # buttons, keys
+UI_BUTTON = os.path.join(ROOT, "fonts", "firasans", "FiraSans-Bold.ttf")      # buttons, keys
 UI_BODY = os.path.join(ROOT, "fonts", "firasans", "FiraSans-SemiBold.ttf")     # body text
 NBSP = " "
 

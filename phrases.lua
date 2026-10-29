@@ -262,6 +262,7 @@ ns.BalanceText(intro, ns.READ_W)
 y = y - intro:GetStringHeight() - SP.l
 
 local input = CreateFrame("EditBox", nil, panel, "InputBoxTemplate")
+input:SetFontObject(ns.Fonts.Input)
 -- Box and Add button centred together: 420 + m + 96 wide.
 input:SetSize(420, ns.INPUT_H)
 input:SetPoint("TOP", -(96 + SP.m) / 2, y - (ns.BUTTON_H - ns.INPUT_H) / 2)

@@ -986,6 +986,17 @@ test("19. Maines' own close buttons (no WoW X) close their windows; Escape still
     Maines_Frame:Hide()
 end)
 
+test("20. the minimap medallion sits centred on LibDBIcon's backing disc and covers it", function()
+    local btn = LibStub("LibDBIcon-1.0"):GetMinimapButton("Maines")
+    ok(btn and btn.icon, "minimap button exists")
+    local w, h = btn.icon:GetSize()
+    ok(w >= 20 and h >= 20, "icon covers the 20px disc (" .. w .. "x" .. h .. ")")
+    local point, rel, relPoint, x, y = btn.icon:GetPoint(1)
+    eq(btn.icon:GetNumPoints(), 1, "one anchor")
+    eq(point .. " " .. tostring(relPoint) .. " " .. x .. "," .. y, "CENTER TOPLEFT 17,-15", "centred on the disc")
+    ok(rel == btn, "anchored to the minimap button")
+end)
+
 -- ---------------------------------------------------------------- summary
 local function sortedKeys(t) local k = {}; for n in pairs(t) do k[#k + 1] = n end; table.sort(k); return k end
 out(("== %d passed, %d failed"):format(passed, failed))
