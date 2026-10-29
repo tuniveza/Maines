@@ -2056,55 +2056,59 @@ header:SetHeight(HEADER_HEIGHT)
 
 Maines_DressBrassBand(header)
 
--- The title: letter-spaced capitals in the engraved display face, dark ink with a pale edge
--- below each stroke so it reads as pressed into the brass.
-local windowTitle = header:CreateFontString(nil, "OVERLAY")
-windowTitle:SetFontObject(Maines_Font_Display)
-windowTitle:SetPoint("TOP", header, "TOP", 0, -7)
-windowTitle:SetText("M A I N E S")
-windowTitle:SetTextColor(0.20, 0.11, 0.03)
-windowTitle:SetShadowColor(1, 0.94, 0.78, 0.6)
-windowTitle:SetShadowOffset(0, -1)
+-- (Wrapped in do ... end: the main chunk is close to Lua's 200-locals limit, and these
+-- header pieces are only needed right here.)
+do
+    -- The title: letter-spaced capitals in the engraved display face, dark ink with a pale edge
+    -- below each stroke so it reads as pressed into the brass.
+    local windowTitle = header:CreateFontString(nil, "OVERLAY")
+    windowTitle:SetFontObject(Maines_Font_Display)
+    windowTitle:SetPoint("TOP", header, "TOP", 0, -7)
+    windowTitle:SetText("M A I N E S")
+    windowTitle:SetTextColor(0.20, 0.11, 0.03)
+    windowTitle:SetShadowColor(1, 0.94, 0.78, 0.6)
+    windowTitle:SetShadowOffset(0, -1)
 
-local windowSubtitle = header:CreateFontString(nil, "OVERLAY")
-windowSubtitle:SetFontObject(Maines_Font_BodySmall)
-windowSubtitle:SetPoint("TOP", windowTitle, "BOTTOM", 0, -4)
-windowSubtitle:SetJustifyH("CENTER")
-windowSubtitle:SetText("gnomish / goblin-engineered chat tagger")
-windowSubtitle:SetTextColor(0.30, 0.18, 0.07)
-windowSubtitle:SetShadowColor(1, 0.94, 0.78, 0.4)
-windowSubtitle:SetShadowOffset(0, -1)
+    local windowSubtitle = header:CreateFontString(nil, "OVERLAY")
+    windowSubtitle:SetFontObject(Maines_Font_BodySmall)
+    windowSubtitle:SetPoint("TOP", windowTitle, "BOTTOM", 0, -4)
+    windowSubtitle:SetJustifyH("CENTER")
+    windowSubtitle:SetText("gnomish / goblin-engineered chat tagger")
+    windowSubtitle:SetTextColor(0.30, 0.18, 0.07)
+    windowSubtitle:SetShadowColor(1, 0.94, 0.78, 0.4)
+    windowSubtitle:SetShadowOffset(0, -1)
 
--- Fine engraved flourishes either side of the title: a hairline fading outward, ending in a
--- small diamond next to the lettering. Drawn, not pictures.
-for _, side in ipairs({-1, 1}) do
-    local diamond = header:CreateTexture(nil, "ARTWORK")
-    diamond:SetTexture("Interface\\Buttons\\WHITE8X8")
-    diamond:SetVertexColor(0.24, 0.13, 0.04)
-    diamond:SetSize(5, 5)
-    diamond:SetRotation(math.rad(45))
-    if side < 0 then
-        diamond:SetPoint("RIGHT", windowTitle, "LEFT", -14, -1)
-    else
-        diamond:SetPoint("LEFT", windowTitle, "RIGHT", 14, -1)
+    -- Fine engraved flourishes either side of the title: a hairline fading outward, ending in a
+    -- small diamond next to the lettering. Drawn, not pictures.
+    for _, side in ipairs({-1, 1}) do
+        local diamond = header:CreateTexture(nil, "ARTWORK")
+        diamond:SetTexture("Interface\\Buttons\\WHITE8X8")
+        diamond:SetVertexColor(0.24, 0.13, 0.04)
+        diamond:SetSize(5, 5)
+        diamond:SetRotation(math.rad(45))
+        if side < 0 then
+            diamond:SetPoint("RIGHT", windowTitle, "LEFT", -14, -1)
+        else
+            diamond:SetPoint("LEFT", windowTitle, "RIGHT", 14, -1)
+        end
+        local line = header:CreateTexture(nil, "ARTWORK")
+        line:SetTexture("Interface\\Buttons\\WHITE8X8")
+        line:SetHeight(1)
+        line:SetWidth(90)
+        local ink, clear = CreateColor(0.24, 0.13, 0.04, 0.8), CreateColor(0.24, 0.13, 0.04, 0)
+        if side < 0 then
+            line:SetPoint("RIGHT", diamond, "LEFT", -4, 0)
+            line:SetGradient("HORIZONTAL", clear, ink)
+        else
+            line:SetPoint("LEFT", diamond, "RIGHT", 4, 0)
+            line:SetGradient("HORIZONTAL", ink, clear)
+        end
     end
-    local line = header:CreateTexture(nil, "ARTWORK")
-    line:SetTexture("Interface\\Buttons\\WHITE8X8")
-    line:SetHeight(1)
-    line:SetWidth(90)
-    local ink, clear = CreateColor(0.24, 0.13, 0.04, 0.8), CreateColor(0.24, 0.13, 0.04, 0)
-    if side < 0 then
-        line:SetPoint("RIGHT", diamond, "LEFT", -4, 0)
-        line:SetGradient("HORIZONTAL", clear, ink)
-    else
-        line:SetPoint("LEFT", diamond, "RIGHT", 4, 0)
-        line:SetGradient("HORIZONTAL", ink, clear)
-    end
+
+    local windowClose = CreateFrame("Button", nil, header, "UIPanelCloseButton")
+    windowClose:SetPoint("TOPRIGHT", -6, -6)
+    windowClose:SetScript("OnClick", function() Maines_HideMainWindow() end)
 end
-
-local windowClose = CreateFrame("Button", nil, header, "UIPanelCloseButton")
-windowClose:SetPoint("TOPRIGHT", -6, -6)
-windowClose:SetScript("OnClick", function() Maines_HideMainWindow() end)
 
 -- Pages: one per functional area, as a row of tabs under the title, each with Maines' own icon.
 -- Each page shows/hides its own panel; the open page's tab is highlighted.
@@ -2173,32 +2177,35 @@ footerBar:SetHeight(FOOTER_HEIGHT - 3)
 local footerBg = footerBar:CreateTexture(nil, "BACKGROUND")
 footerBg:SetAllPoints()
 footerBg:SetTexture("Interface\\Buttons\\WHITE8X8")
-local footerRule = footerBar:CreateTexture(nil, "ARTWORK")
-footerRule:SetTexture("Interface\\Buttons\\WHITE8X8")
-Maines_Look.TonePlateGradient(footerBar, footerBg, 0.75, 1.15)
-Maines_Look.RegisterPlate(footerRule, {BORDER_DARK}, function(c) footerRule:SetVertexColor(c[1], c[2], c[3]) end)
-footerRule:SetHeight(1)
-footerRule:SetPoint("TOPLEFT")
-footerRule:SetPoint("TOPRIGHT")
+-- (do ... end for the same 200-locals reason as the header.)
+do
+    local footerRule = footerBar:CreateTexture(nil, "ARTWORK")
+    footerRule:SetTexture("Interface\\Buttons\\WHITE8X8")
+    Maines_Look.TonePlateGradient(footerBar, footerBg, 0.75, 1.15)
+    Maines_Look.RegisterPlate(footerRule, {BORDER_DARK}, function(c) footerRule:SetVertexColor(c[1], c[2], c[3]) end)
+    footerRule:SetHeight(1)
+    footerRule:SetPoint("TOPLEFT")
+    footerRule:SetPoint("TOPRIGHT")
 
-local creditsLine1 = footerBar:CreateFontString(nil, "OVERLAY")
-creditsLine1:SetFontObject(Maines_Font_BodySmall)
-creditsLine1:SetPoint("TOP", 0, -7)
-creditsLine1:SetJustifyH("CENTER")
-creditsLine1:SetText("Designed by Dominic Hughes / Zuniversa / Tuniveza  -  Silvermoon EU, Universe of Warcraft")
-creditsLine1:SetTextColor(PLATE_TEXT[1], PLATE_TEXT[2], PLATE_TEXT[3])
+    local creditsLine1 = footerBar:CreateFontString(nil, "OVERLAY")
+    creditsLine1:SetFontObject(Maines_Font_BodySmall)
+    creditsLine1:SetPoint("TOP", 0, -7)
+    creditsLine1:SetJustifyH("CENTER")
+    creditsLine1:SetText("Designed by Dominic Hughes / Zuniversa / Tuniveza  -  Silvermoon EU, Universe of Warcraft")
+    creditsLine1:SetTextColor(PLATE_TEXT[1], PLATE_TEXT[2], PLATE_TEXT[3])
 
--- Shifted right by half the stamp's width (+ gap) so stamp and text together stay centered.
-local creditsLine2 = footerBar:CreateFontString(nil, "OVERLAY")
-creditsLine2:SetFontObject(Maines_Font_BodySmall)
-creditsLine2:SetPoint("TOP", creditsLine1, "BOTTOM", 10, -3)
-creditsLine2:SetJustifyH("CENTER")
-creditsLine2:SetText("The GLYPH Stamp  -  Coded and Guided by Generative Assistance")
-creditsLine2:SetTextColor(PLATE_TEXT_SOFT[1], PLATE_TEXT_SOFT[2], PLATE_TEXT_SOFT[3])
+    -- Shifted right by half the stamp's width (+ gap) so stamp and text together stay centered.
+    local creditsLine2 = footerBar:CreateFontString(nil, "OVERLAY")
+    creditsLine2:SetFontObject(Maines_Font_BodySmall)
+    creditsLine2:SetPoint("TOP", creditsLine1, "BOTTOM", 10, -3)
+    creditsLine2:SetJustifyH("CENTER")
+    creditsLine2:SetText("The GLYPH Stamp  -  Coded and Guided by Generative Assistance")
+    creditsLine2:SetTextColor(PLATE_TEXT_SOFT[1], PLATE_TEXT_SOFT[2], PLATE_TEXT_SOFT[3])
 
--- The stamp's mark (see Maines_MakeGlyphBadge above).
-local footerBadge = Maines_MakeGlyphBadge(footerBar, 12)
-footerBadge:SetPoint("RIGHT", creditsLine2, "LEFT", -8, 0)
+    -- The stamp's mark (see Maines_MakeGlyphBadge above).
+    local footerBadge = Maines_MakeGlyphBadge(footerBar, 12)
+    footerBadge:SetPoint("RIGHT", creditsLine2, "LEFT", -8, 0)
+end
 
 -- Everything the feature files (phrases.lua, animate.lua, badges.lua) need to build their own
 -- pages in the same style.
