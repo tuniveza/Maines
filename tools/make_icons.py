@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
 """Rebuilds Maines' icons (run from anywhere: python3 tools/make_icons.py).
 
-textures/icons/<name>.tga  - 64x64 full-colour icons on transparent: brass, copper, parchment
-                             and enamel gems, gnomish/goblin-engineered, each with a dark outline
-                             so it reads on the light parchment tab AND the dark wood strip. The
-                             addon draws them at white vertex colour (no tint).
+textures/icons/<name>.tga  - 64x64 square icons in the style of WoW ability icons (original art):
+                             painted brass, parchment, wood, slate and glowing gems over a dark
+                             clouded background, lit from the top left with a rim light, inside
+                             a dark bevelled iron frame with an inner vignette. The addon draws
+                             them untinted (an unselected tab only darkens them to neutral grey).
 textures/logo.tga          - 64x64 full-colour brass medallion with an ink "M" (minimap / addon list)
 textures/icons/preview.png - contact sheet for judging them at 64/32/20 px (dev only, not shipped)
 
-Every shape is a signed distance field in 64-px icon units, painted at 8x (512x512) in
-layers (outline, metal or enamel fill, bevel light, facets, gloss) and downsampled with
-LANCZOS on premultiplied colour, so edges are clean. No randomness: fully reproducible.
+Every shape is a signed distance field in 64-px icon units, painted at 8x (512x512):
+seeded value-noise textures, normals from the shape's rounded edge for lighting, blurred
+shadows and bloom, then LANCZOS down to 64 px with a light unsharp mask. All noise uses fixed
+seeds, so the output is fully reproducible.
 """
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
 ROOT = Path(__file__).resolve().parent.parent
 TEX = ROOT / "textures"
@@ -130,241 +132,390 @@ def cover(d):
 
 
 
-# ---------------------------------------------------------------- materials
-# Each material is (light, dark): the colour on the lit top-left and on the shaded bottom-right.
-
-OUTLINE = (38, 20, 7)          # the dark rim every icon (and every part) sits in
-SEAM = (78, 44, 14)            # thinner, warmer line between parts on the same plate
-INK_C = (52, 30, 12)
-BRASS = ((255, 228, 146), (150, 94, 32))
-GOLD = ((255, 240, 160), (200, 128, 24))
-COPPER = ((246, 170, 112), (128, 56, 24))
-PARCHMENT = ((255, 248, 222), (218, 186, 128))
-WOODM = ((226, 170, 104), (122, 70, 30))
-TEAL = ((128, 240, 222), (10, 104, 108))
-RED = ((255, 128, 100), (138, 20, 20))
-BLUE = ((136, 184, 255), (24, 50, 146))
-GREEN = ((170, 238, 120), (36, 116, 40))
-CREAM = ((255, 252, 236), (226, 204, 160))
-
-LIGHT_DIR = np.array([-0.62, -0.78])     # towards the light: up and to the left (y grows down)
-LIGHT_ANGLE = np.degrees(np.arctan2(LIGHT_DIR[1], LIGHT_DIR[0]))
-
+# ---------------------------------------------------------------- noise, blur, colour helpers
+# Painted look: every surface gets seeded value-noise texture (metal grain, wood, parchment
+# fibre, stone), light comes from the top left with a cool rim light from the bottom right,
+# emissive parts bloom, and each icon sits in a dark bevelled square with an inner vignette.
 
 def lerp(a, b, t):
     a, b = np.asarray(a, float), np.asarray(b, float)
     return a + (b - a) * np.asarray(t)[..., None]
 
 
-def shade(d, mat, bevel=2.4, bevel_k=0.6, gloss=0.0, inset=False, facets=None, grain=0.0):
-    """Colour field for one part: diagonal light-to-dark ramp over the part's own box, a bevel
-    (raised, or recessed with inset=True) lit from the top left, optional star facets
-    (cx, cy, points, first point angle), a soft gloss spot and faint wood grain."""
-    light, dark = mat
-    inside = d < 0.5
-    xs, ys = PX[inside], PY[inside]
-    x0, x1, y0, y1 = xs.min(), xs.max(), ys.min(), ys.max()
-    w, h = max(x1 - x0, 1e-3), max(y1 - y0, 1e-3)
-    t = np.clip(0.38 * (PX - x0) / w + 0.62 * (PY - y0) / h, 0, 1)
-    col = lerp(light, dark, t ** 1.1)
-
-    if facets:
-        cx, cy, n, a0 = facets
-        step = 360.0 / n
-        ang = np.degrees(np.arctan2(PY - cy, PX - cx))
-        mid = a0 + (np.floor(2 * (ang - a0) / step) + 0.5) * step / 2
-        lit = np.cos(np.radians(mid - LIGHT_ANGLE))
-        col = lerp(col, lerp(dark, light, 0.5 + 0.5 * lit), 0.75)
-
-    if grain:
-        col *= (1 + grain * np.sin(PY * 1.9 + 1.6 * np.sin(PX * 0.21)))[..., None]
-
-    hgt = np.clip(-d / bevel, 0, 1)
-    hgt = hgt * (2 - hgt)
-    gy, gx = np.gradient(hgt)
-    k = SS * bevel / 2
-    lit = -(gx * LIGHT_DIR[0] + gy * LIGHT_DIR[1]) * k
-    if inset:
-        lit = -lit
-    col = lerp(col, (255, 250, 228), np.clip(lit, 0, 1) * bevel_k)
-    col = lerp(col, np.asarray(dark) * 0.5, np.clip(-lit, 0, 1) * bevel_k)
-
-    if gloss:
-        gx0, gy0 = x0 + 0.32 * w, y0 + 0.27 * h
-        sig = 0.2 * min(w, h)
-        spot = np.exp(-((PX - gx0) ** 2 + (PY - gy0) ** 2) / (2 * sig ** 2))
-        col = lerp(col, (255, 255, 245), spot * gloss)
-    return col
+def value_noise(seed, gy, gx):
+    g = np.random.default_rng(seed).random((max(2, int(gy)), max(2, int(gx)))).astype(np.float32)
+    return np.asarray(Image.fromarray(g, "F").resize((N, N), Image.BICUBIC), float)
 
 
-def gem(cx, cy, r, mat):
-    """A round cabochon: radial shading off-centre, a bright catch-light, a reflected glow."""
-    light, dark = mat
-    u = np.clip(np.hypot(PX - (cx - 0.3 * r), PY - (cy - 0.35 * r)) / (1.45 * r), 0, 1)
-    col = lerp(light, dark, u ** 0.9)
-    glow = np.exp(-((PX - (cx + 0.35 * r)) ** 2 + (PY - (cy + 0.45 * r)) ** 2) / (2 * (0.3 * r) ** 2))
-    col = lerp(col, light, glow * 0.35)
-    catch = cover(circle(cx - 0.36 * r, cy - 0.38 * r, 0.3 * r))
-    return lerp(col, (255, 255, 250), catch * 0.85)
+def fbm(seed, base=4, octaves=5, sy=1.0, sx=1.0):
+    """Fractal value noise, roughly 0..1. sy/sx > 1 squeeze the features along that axis
+    (sy=6, sx=0.5 gives horizontal brushed streaks)."""
+    tot, amp, norm = np.zeros((N, N)), 1.0, 0.0
+    for o in range(octaves):
+        c = base * 2 ** o
+        tot += amp * value_noise(seed * 101 + o, c * sy, c * sx)
+        norm += amp
+        amp *= 0.55
+    return tot / norm
+
+
+def blur(a, sigma):
+    """Gaussian blur, sigma in icon px (FFT, edge-padded)."""
+    if a.ndim == 3:
+        return np.dstack([blur(a[..., i], sigma) for i in range(a.shape[2])])
+    s = sigma * SS
+    pad = int(3 * s) + 1
+    b = np.pad(a, pad, mode="edge")
+    fy = np.fft.fftfreq(b.shape[0])[:, None]
+    fx = np.fft.rfftfreq(b.shape[1])[None, :]
+    k = np.exp(-2 * (np.pi * s) ** 2 * (fy ** 2 + fx ** 2))
+    return np.fft.irfft2(np.fft.rfft2(b) * k, s=b.shape)[pad:-pad, pad:-pad]
+
+
+def shifted(a, dx, dy):
+    return np.roll(np.roll(a, int(round(dy * SS)), axis=0), int(round(dx * SS)), axis=1)
+
+
+class rotated:
+    """with rotated(deg, cx, cy): shapes drawn inside are turned by deg (clockwise on screen)."""
+
+    def __init__(self, deg, cx=32, cy=32):
+        self.t, self.c = np.radians(deg), (cx, cy)
+
+    def __enter__(self):
+        global PX, PY
+        self.saved = PX, PY
+        cx, cy = self.c
+        c, s = np.cos(self.t), np.sin(self.t)
+        dx, dy = PX - cx, PY - cy
+        PX, PY = cx + c * dx + s * dy, cy - s * dx + c * dy
+
+    def __exit__(self, *exc):
+        global PX, PY
+        PX, PY = self.saved
+
+
+def _n3(*v):
+    v = np.asarray(v, float)
+    return v / np.linalg.norm(v)
+
+
+LIGHT = _n3(-0.5, -0.75, 0.75)       # key light: top left, in front (x right, y down, z out)
+HALF = _n3(*(LIGHT + (0, 0, 1)))
+RIM = _n3(0.7, 0.6, 0.3)             # cool back light from the bottom right
+
+
+def normals(d, radius):
+    """Surface normals of a shape whose edge rounds over `radius` icon px (flat on top)."""
+    t = np.clip(-d / radius, 0, 1)
+    h = radius * np.sqrt(np.clip(1 - (1 - t) ** 2, 0, 1))
+    gy, gx = np.gradient(h)
+    n = np.dstack([-gx * SS, -gy * SS, np.ones_like(h)])
+    return n / np.linalg.norm(n, axis=2, keepdims=True)
+
+
+def lit(d, base, radius=4.0, tex=None, tex_amp=0.3, amb=0.3, diff=0.95, spec=0.35, shin=22,
+        spec_col=(255, 246, 220), rim_col=(120, 170, 255), rim=0.35, dome=None):
+    """Lit colour field for one part. dome=(cx, cy, r) uses a sphere normal instead (gems, knobs)."""
+    if dome:
+        cx, cy, r = dome
+        dx, dy = (PX - cx) / r, (PY - cy) / r
+        dz = np.sqrt(np.clip(1 - dx * dx - dy * dy, 0.02, 1))
+        n = np.dstack([dx, dy, dz])
+        n /= np.linalg.norm(n, axis=2, keepdims=True)
+    else:
+        n = normals(d, radius)
+    base = np.broadcast_to(np.asarray(base, float), (N, N, 3))
+    if tex is not None:
+        base = base * (1 + tex_amp * (tex - 0.5) * 2)[..., None]
+    ndl = np.clip(n @ LIGHT, 0, 1)
+    fall = np.clip(1.22 - 0.4 * (PX + PY) / 64, 0.66, 1.25)      # whole-icon light falloff
+    col = base * ((amb + diff * ndl) * fall)[..., None]
+    col = col + (np.clip(n @ HALF, 0, 1) ** shin * spec)[..., None] * np.asarray(spec_col, float)
+    rl = np.clip(n @ RIM, 0, 1) ** 2 * (1 - n[..., 2]) ** 0.5
+    return col + (rl * rim)[..., None] * np.asarray(rim_col, float)
 
 
 class Painter:
-    """Premultiplied RGBA canvas at working resolution; parts are painted back to front."""
+    """Straight RGB (0..255) over a full-bleed square; parts are painted back to front."""
 
-    def __init__(self):
-        self.rgb = np.zeros((N, N, 3))
-        self.a = np.zeros((N, N))
+    def __init__(self, bg_light, bg_dark, seed, centre=(26, 24)):
+        r = np.hypot(PX - centre[0], PY - centre[1]) / 46
+        clouds = fbm(seed, 2, 5)
+        streaks = fbm(seed + 5, 3, 4, sy=0.6, sx=2.2)
+        t = np.clip(r ** 1.15 + (clouds - 0.5) * 0.7, 0, 1)
+        self.rgb = lerp(bg_light, bg_dark, t) * (0.88 + 0.3 * (streaks - 0.5))[..., None]
+        self.a = cover(rbox(32, 32, 32, 32, 3.5))
 
-    def fill(self, cov, col):
+    def fill(self, cov, col, k=1.0):
+        cov = cov * k
         col = np.broadcast_to(np.asarray(col, float), (N, N, 3))
         self.rgb = self.rgb * (1 - cov[..., None]) + col * cov[..., None]
-        self.a = self.a * (1 - cov) + cov
 
-    def part(self, d, col, outline=1.2, outline_col=OUTLINE):
-        if outline:
-            self.fill(cover(d - outline), outline_col)
+    def shadow(self, d, dx=1.8, dy=2.6, sigma=2.2, k=0.7):
+        m = shifted(blur(cover(d), sigma), dx, dy)
+        self.rgb = self.rgb * (1 - k * np.clip(m, 0, 1))[..., None]
+
+    def glow(self, d, col, sigma=4.0, k=0.9):
+        m = blur(cover(d), sigma)
+        self.rgb = self.rgb + (np.clip(m, 0, 1) * k)[..., None] * np.asarray(col, float)
+
+    def part(self, d, col, edge=0.9, edge_col=(14, 9, 6), edge_k=0.85):
+        """A painted part with a soft dark contact edge round it."""
+        if edge:
+            self.fill(cover(d - edge), edge_col, edge_k)
         self.fill(cover(d), col)
 
+    def frame(self):
+        sq = rbox(32, 32, 32, 32, 3.5)
+        depth = np.clip(-sq, 0, None)
+        vig = np.exp(-np.clip(depth - 3.0, 0, None) / 6.5)
+        self.rgb *= (1 - 0.5 * vig)[..., None]
+        # bevelled iron edge: top/left lit, bottom/right in shade
+        gy, gx = np.gradient(sq)
+        nrm = np.hypot(gx, gy) + 1e-9
+        litk = (gx * -0.6 + gy * -0.8) / nrm
+        band = cover(np.maximum(sq, -sq - 3.0))
+        iron = lerp((40, 34, 30), (120, 104, 84), np.clip(0.5 + 0.55 * litk, 0, 1))
+        self.fill(band, iron)
+        self.fill(cover(np.abs(sq + 3.0) - 0.45), (8, 6, 5), 0.9)          # inner dark seam
+        self.fill(cover(np.abs(sq + 0.45) - 0.45), (6, 4, 3), 0.95)        # outer black line
+
     def image(self):
-        """Downsample to 64x64 straight-alpha RGBA (transparent pixels keep the outline colour)."""
+        rgb = np.clip(self.rgb, 0, 255)
+        lum = rgb @ np.array([0.3, 0.59, 0.11])
+        rgb = lerp(lum[..., None] * np.ones(3), rgb, 0.94)                # a touch desaturated
+        rgb = np.clip((rgb - 128) * 1.06 + 128, 0, 255)                      # and a touch of contrast
+
         def down(ch):
             return np.asarray(Image.fromarray(ch.astype(np.float32), "F").resize((SIZE, SIZE), Image.LANCZOS))
         a = np.clip(down(self.a), 0, 1)
-        rgb = np.dstack([down(self.rgb[..., i]) for i in range(3)])
-        safe = np.maximum(a, 1e-6)[..., None]
-        rgb = np.where(a[..., None] > 1 / 512, np.clip(rgb / safe, 0, 255), OUTLINE)
-        out = np.dstack([rgb, a * 255]).round().astype(np.uint8)
-        return Image.fromarray(out, "RGBA")
+        out = np.dstack([np.clip(down(rgb[..., i] * self.a) / np.maximum(a, 1e-6), 0, 255) for i in range(3)])
+        out[a < 1 / 512] = (6, 4, 3)
+        img = Image.fromarray(np.dstack([out, a * 255]).round().astype(np.uint8), "RGBA")
+        sharp = img.convert("RGB").filter(ImageFilter.UnsharpMask(radius=0.8, percent=45, threshold=0))
+        sharp.putalpha(img.getchannel("A"))
+        return sharp
 
 
-OL = 2.3   # outer outline width in icon px (~0.7 px at 20 px, ~1.15 px at 32 px)
+# ---------------------------------------------------------------- materials (rich, a little muted)
+
+BRASS = (200, 152, 70)
+GOLD = (236, 184, 72)
+COPPER = (178, 98, 54)
+IRON = (96, 92, 96)
+PARCH = (252, 216, 146)
+WOOD = (196, 128, 66)
+RED = (168, 34, 28)
+SLATE = (104, 118, 140)
 
 
-def silhouette(p, *ds):
-    p.fill(cover(union(*ds) - OL), OUTLINE)
+def brushed(seed):
+    return fbm(seed, 3, 4, sy=6, sx=0.4)
+
+
+def grain(seed, base=6):
+    return fbm(seed, base, 4)
+
+
+def gem(p, cx, cy, r, col, glow=0.0, edge=0.8):
+    d = circle(cx, cy, r)
+    if glow:
+        p.glow(d, col, sigma=r * 0.9, k=glow)
+    p.part(d, lit(d, col, dome=(cx, cy, r), spec=0.9, shin=40, amb=0.35, rim=0.5,
+                  rim_col=np.asarray(col) * 1.2), edge=edge)
+    p.fill(cover(circle(cx - 0.38 * r, cy - 0.42 * r, 0.26 * r)), (255, 255, 248), 0.85)
+
+
+def rivet(p, cx, cy, r=1.7):
+    gem(p, cx, cy, r, BRASS, edge=0.6)
 
 
 # ---------------------------------------------------------------- the eight icons
-# Shapes keep the old line-art silhouettes so the tabs stay recognisable; outer extents
-# (outline included) stay inside [3.5, 60.5].
+# 64-px square icons, the subject painted large inside a 3-px iron frame.
 
 def icon_main(p):
-    # brass luggage label with a parchment face, an eyelet grommet, a red cord, two ink lines
-    body = poly([(7, 25.5), (19, 12.5), (57, 12.5), (57, 51.5), (19, 51.5), (7, 38.5)])
-    cord = bezier((19.5, 32), (5.5, 32), (8, 54.5), 40)
-    cord_d = union(*[seg(*a, *b) for a, b in zip(cord[:-1], cord[1:])]) - 1.8
-    silhouette(p, body, cord_d)
-    p.part(body, shade(body, BRASS, gloss=0.25), outline=0)
-    face = body + 4.2
-    p.part(face, shade(face, PARCHMENT, bevel=1.6, inset=True, bevel_k=0.5), outline=0.9, outline_col=SEAM)
-    p.part(line(30, 26.5, 48.5, 26.5, 4.6), lerp(INK_C, INK_C, 0), outline=0)
-    p.part(line(30, 37.5, 43, 37.5, 4.6), np.asarray(RED[1]) * 0.9, outline=0)
-    ring = circle(19.5, 32, 6.6)
-    p.part(ring, shade(ring, BRASS, bevel=2.2, gloss=0.3), outline=1.0)
-    p.part(circle(19.5, 32, 3.0), (30, 16, 6), outline=0)
-    p.part(cord_d, shade(cord_d, RED, bevel=1.4), outline=1.0)
+    # an aged parchment name tag on a red cord, brass-capped and grommeted
+    with rotated(-12):
+        body = poly([(8, 25), (20, 13), (57, 13), (57, 51), (20, 51), (8, 39)])
+        caps = union(circle(51.5, 18.5, 2.0), circle(51.5, 45.5, 2.0))
+        lines = union(line(29, 25.5, 49, 25.5, 3.6), line(29, 33, 46, 33, 3.0), line(29, 40.5, 40, 40.5, 3.0))
+        ring = np.abs(circle(20.5, 32, 4.9)) - 1.9
+        hole = circle(20.5, 32, 2.9)
+    cord_pts = bezier((20.5 - 1.5, 32.5), (4, 30), (9, -2), 40)
+    cord = union(*[seg(*a, *b) for a, b in zip(cord_pts[:-1], cord_pts[1:])]) - 2.1
+    p.shadow(body)
+    fib = fbm(11, 5, 4, sy=3, sx=0.8)
+    p.part(body, lit(body, PARCH, radius=3.0, tex=fib, tex_amp=0.22, spec=0.15, amb=0.45, rim_col=(255, 120, 80), rim=0.25))
+    # burnt edge: darken toward the rim
+    p.fill(cover(np.abs(body + 1.2) - 1.3), (120, 70, 30), 0.35)
+    ink = (50, 26, 14)
+    p.fill(cover(lines) * (0.75 + 0.25 * fbm(12, 8, 3)), ink)
+    for cx, cy in ((51.5, 18.5), (51.5, 45.5)):
+        with rotated(-12):
+            c = circle(cx, cy, 2.0)
+            p.part(c, lit(c, BRASS, radius=2.0, spec=0.8, shin=30), edge=0.6)
+    p.part(ring, lit(ring, BRASS, radius=1.8, tex=brushed(13), tex_amp=0.2, spec=0.9, shin=30), edge=0.7)
+    p.fill(cover(hole), (18, 10, 6))
+    p.shadow(cord, 1.2, 1.6, 1.4, 0.5)
+    p.part(cord, lit(cord, RED, radius=2.1, tex=fbm(14, 4, 3, sy=4, sx=4), tex_amp=0.35, spec=0.4,
+                     rim_col=(255, 140, 90), rim=0.4), edge=0.7)
 
 
 def icon_phrases(p):
-    # brass-rimmed parchment speech bubble holding three enamel gems
-    bubble = union(rbox(32, 27.5, 25.5, 19, 11), poly([(15, 38), (28.5, 38), (12, 55.5)]))
-    silhouette(p, bubble)
-    p.part(bubble, shade(bubble, BRASS, gloss=0.2), outline=0)
-    face = bubble + 3.8
-    p.part(face, shade(face, PARCHMENT, bevel=1.8, inset=True, bevel_k=0.5), outline=0.9, outline_col=SEAM)
-    for x, mat in ((20.5, TEAL), (32, RED), (43.5, BLUE)):
-        p.part(circle(x, 27.5, 4.7), gem(x, 27.5, 4.7, mat), outline=1.1)
+    # a brass-rimmed parchment speech bubble with three glowing arcane gems
+    bubble = union(rbox(32, 27.5, 27, 20, 12.5), poly([(13, 40), (29, 40), (9, 59)]))
+    face = bubble + 3.4
+    p.shadow(bubble)
+    p.part(bubble, lit(bubble, BRASS, radius=3.0, tex=brushed(21), tex_amp=0.25, spec=0.7, shin=26))
+    p.part(face, lit(face, PARCH, radius=5.0, tex=fbm(22, 5, 4, sy=2.5, sx=1), tex_amp=0.2, spec=0.12, amb=0.45,
+                     rim=0.15), edge=0.7, edge_col=(60, 34, 12))
+    for x in (20, 32, 44):
+        gem(p, x, 27.5, 5.0, (40, 190, 200), glow=0.55)
 
 
 def icon_animate(p):
-    # a faceted gold four-point star, a teal enamel one and a ruby spark
-    big = sparkle(26, 35, 20, 3.2) - 1.1
-    small = sparkle(47, 17, 10.5, 3.2) - 1.0
-    dot = circle(50.5, 40, 3.8)
-    silhouette(p, big, small, dot)
-    p.part(big, shade(big, GOLD, bevel=1.4, bevel_k=0.3, facets=(26, 35, 4, 0)), outline=0)
-    p.part(small, shade(small, TEAL, bevel=1.2, bevel_k=0.3, facets=(47, 17, 4, 0)), outline=0)
-    p.part(dot, gem(50.5, 40, 3.8, RED), outline=0)
-    p.fill(cover(circle(26, 35, 2.2)) * 0.9, (255, 255, 240))       # the glint in the middle
+    # arcane sparkles: a blazing four-point star, two small ones and a drift of motes
+    rng = np.random.default_rng(31)
+    p.glow(circle(30, 34, 12), (130, 60, 230), sigma=8, k=0.4)
+    ring = np.abs(circle(31, 33, 22)) - 0.45
+    p.fill(cover(ring) * (0.3 + 0.7 * fbm(32, 3, 3)), (170, 120, 255), 0.35)
+    stars = [(30, 34, 22, 3.0), (50, 14, 9.5, 3.0), (13, 15, 5.5, 2.8), (51, 50, 5.0, 2.8)]
+    for cx, cy, r, k in stars:
+        s = sparkle(cx, cy, r, k) - 0.8
+        p.glow(s, (160, 90, 255), sigma=r * 0.12 + 0.8, k=0.55)
+        p.fill(cover(s - 0.8), (40, 10, 70), 0.75)
+        core = np.clip(np.hypot(PX - cx, PY - cy) / (r * 0.8), 0, 1)
+        p.fill(cover(s), lerp((255, 255, 255), (150, 80, 250), core ** 0.55))
+    for _ in range(18):
+        a = rng.uniform(0, 2 * np.pi)
+        rr = rng.uniform(14, 27)
+        x, y = 31 + rr * np.cos(a), 33 + rr * np.sin(a) * 0.85
+        s = rng.uniform(0.5, 1.2)
+        d = circle(x, y, s)
+        p.glow(d, (200, 160, 255), sigma=1.6, k=0.8)
+        p.fill(cover(d), (255, 240, 255))
 
 
 def icon_badges(p):
-    # brass shield with a red enamel field and a faceted gold star
-    top, xl, xr, mid = 7 + H, 10.5 + H, 53.5 - H, 26.5
-    left = bezier((32, 57.5 - H), (xl, 50), (xl, mid))
-    right = bezier((xr, mid), (xr, 50), (32, 57.5 - H))
-    shield = poly([(xl, top), (xr, top)] + [tuple(q) for q in right] + [tuple(q) for q in left[1:]]) - H
-    silhouette(p, shield)
-    p.part(shield, shade(shield, BRASS, bevel=2.2, gloss=0.25), outline=0)
-    field = shield + 4.6
-    p.part(field, shade(field, RED, bevel=2.0, inset=True, gloss=0.35), outline=0.9, outline_col=SEAM)
-    star = star5(32, 30.5, 13, 0.46) - 0.4
-    p.part(star, shade(star, GOLD, bevel=1.2, bevel_k=0.3, facets=(32, 30.5, 5, -90)), outline=1.1)
+    # a heraldic shield: riveted brass rim, red enamel field, a golden faceted star
+    top, xl, xr, mid, bot = 7.5, 10, 54, 27, 58.5
+    left = bezier((32, bot), (xl, 51), (xl, mid))
+    right = bezier((xr, mid), (xr, 51), (32, bot))
+    shield = poly([(xl, top), (xr, top)] + [tuple(q) for q in right] + [tuple(q) for q in left[1:]]) - 0.5
+    field = shield + 4.4
+    p.shadow(shield)
+    p.part(shield, lit(shield, BRASS, radius=3.0, tex=brushed(41), tex_amp=0.25, spec=0.7, shin=26))
+    p.part(field, lit(field, RED, radius=2.5, tex=grain(42, 5), tex_amp=0.25, spec=0.35, shin=16,
+                      rim_col=(255, 120, 90), rim=0.3), edge=0.8)
+    for x, y in ((13.5, 11), (50.5, 11), (12.5, 30), (51.5, 30), (32, 55.5)):
+        rivet(p, x, y, 1.5)
+    star = star5(32, 30.5, 14, 0.45) - 0.4
+    p.glow(star, (255, 190, 80), sigma=3.0, k=0.35)
+    ang = np.degrees(np.arctan2(PY - 30.5, PX - 32))
+    mid_a = -90 + (np.floor(2 * (ang + 90) / 72) + 0.5) * 36
+    face = 0.5 + 0.5 * np.cos(np.radians(mid_a - 225))
+    p.part(star, lerp((140, 80, 20), (255, 236, 150), face) * (0.92 + 0.16 * grain(43, 8))[..., None], edge=0.8)
 
 
 def icon_channels(p):
-    # a ruby in a brass socket sending brass (inner) and teal enamel (outer) waves
-    w = 5.6
-    inner = union(arc(32, 32, 13, -48, 48) - w / 2, arc(32, 32, 13, 132, 228) - w / 2)
-    outer = union(arc(32, 32, 23, -45, 45) - w / 2, arc(32, 32, 23, 135, 225) - w / 2)
-    socket = circle(32, 32, 6.6)
-    silhouette(p, inner, outer, socket)
-    p.part(outer, shade(outer, TEAL, bevel=1.8, gloss=0.2), outline=0)
-    p.part(inner, shade(inner, BRASS, bevel=1.8, gloss=0.2), outline=0)
-    p.part(socket, shade(socket, BRASS, bevel=1.8), outline=0)
-    p.part(circle(32, 32, 4.0), gem(32, 32, 4.0, RED), outline=0.9)
+    # a glowing teal crystal in a brass claw, broadcasting rings of light
+    teal = (60, 220, 210)
+    for r, a in ((13.5, 42), (22.5, 40)):
+        w = union(arc(32, 30, r, -a, a) - 1.8, arc(32, 30, r, 180 - a, 180 + a) - 1.8)
+        p.glow(w, teal, sigma=2.6, k=0.9)
+        p.fill(cover(w), (190, 255, 245))
+    crystal = poly([(32, 10), (39.5, 22), (38, 42), (32, 50), (26, 42), (24.5, 22)])
+    base = union(rbox(32, 53, 11, 4, 2), poly([(23, 50), (27, 41), (29, 50)]), poly([(41, 50), (37, 41), (35, 50)]))
+    p.glow(crystal, teal, sigma=6, k=0.6)
+    p.shadow(base)
+    p.part(base, lit(base, BRASS, radius=2.5, tex=brushed(51), tex_amp=0.25, spec=0.8, shin=26))
+    # crystal facets: lit left face, dark right face, bright ridge, glowing core
+    left = PX < 32 + (PY - 30) * 0.0
+    face = np.where(left, 1.0, 0.45) * np.clip(1.15 - (PY - 10) / 60, 0.6, 1.2)
+    col = lerp((10, 90, 100), (120, 250, 235), face)
+    core = np.exp(-((PX - 31) ** 2 / 18 + (PY - 30) ** 2 / 90))
+    col = lerp(col, (230, 255, 250), core * 0.7)
+    p.part(crystal, col, edge=0.8)
+    p.fill(cover(line(32, 11, 32, 49, 0.9)), (230, 255, 250), 0.7)
+    p.fill(cover(union(line(24.8, 22.5, 32, 25, 0.7), line(39.2, 22.5, 32, 25, 0.7))), (220, 255, 250), 0.6)
+    p.fill(cover(circle(28.5, 18, 1.5)), (255, 255, 255), 0.9)
 
 
 def icon_behavior(p):
-    # brass toggle switch: recessed green "on" track, a raised brass knob, a cream "on" mark
-    pill = rbox(32, 32, 25.5, 16.5, 16.5)
-    silhouette(p, pill)
-    p.part(pill, shade(pill, BRASS, gloss=0.25), outline=0)
-    track = pill + 3.6
-    p.part(track, shade(track, GREEN, bevel=2.6, inset=True, bevel_k=0.7, gloss=0.2), outline=0.9, outline_col=SEAM)
-    p.part(line(20, 26.5, 20, 37.5, 3.2), shade(line(20, 26.5, 20, 37.5, 3.2), CREAM, bevel=1), outline=0)
-    knob = circle(41, 32, 10.2)
-    p.part(knob, shade(knob, BRASS, bevel=3.4, bevel_k=0.7, gloss=0.45), outline=1.2)
-    p.part(circle(41, 32, 3.4), shade(circle(41, 32, 3.4), BRASS, bevel=1.6, inset=True), outline=0.8,
-           outline_col=SEAM)
+    # a gnomish lever on a riveted iron plate, red knob, green "on" lamp
+    plate = rbox(32, 42, 24, 14, 4)
+    slot = rbox(32, 42, 13, 2.6, 2.6)
+    p.shadow(plate)
+    p.part(plate, lit(plate, IRON, radius=2.5, tex=brushed(61), tex_amp=0.35, spec=0.5, shin=20))
+    for x, y in ((12, 32), (52, 32), (12, 52), (52, 52)):
+        rivet(p, x, y, 1.8)
+    p.fill(cover(slot), (12, 10, 10))
+    p.fill(cover(np.abs(slot + 0.2) - 0.4) * (PY > 42), (150, 140, 130), 0.5)
+    arm = line(33, 42, 46, 15, 4.6)
+    p.shadow(arm, 2.2, 2.4, 1.6, 0.6)
+    p.part(arm, lit(arm, (190, 186, 180), radius=2.3, tex=brushed(62), tex_amp=0.2, spec=0.9, shin=30), edge=0.7)
+    hub = circle(33, 42, 5.4)
+    p.part(hub, lit(hub, BRASS, dome=(33, 42, 5.4), spec=0.9, shin=30), edge=0.8)
+    gem(p, 46, 14, 7.2, RED)
+    gem(p, 17, 41.5, 3.0, (70, 230, 90), glow=0.8, edge=0.7)
 
 
 def icon_cosmetic(p):
-    # wooden painter's palette with four glossy paint blobs
-    body = poly(ellipse_poly(32, 32, 26, 23))
-    body = cut(body, circle(50.5, 46, 8.5))          # thumb notch on the lower right
-    silhouette(p, body)
-    p.part(body, shade(body, WOODM, bevel=2.6, gloss=0.2, grain=0.045), outline=0)
-    for (x, y), mat in (((21, 32), RED), ((28.5, 22.5), GOLD), ((39.5, 22.5), TEAL), ((25.5, 42), BLUE)):
-        p.part(circle(x, y, 4.8), gem(x, y, 4.8, mat), outline=1.1)
+    # a painter's palette of grained wood with glossy paint, and a brush
+    with rotated(-14, 32, 34):
+        pal = poly(ellipse_poly(31, 35, 26, 20.5))
+        pal = cut(pal, circle(52, 47, 8))
+        thumb = circle(20, 43, 3.6)
+        wood = fbm(71, 2, 4, sy=0.4, sx=5)
+    pal = cut(pal, thumb)
+    p.shadow(pal)
+    p.part(pal, lit(pal, WOOD, radius=3.2, tex=wood, tex_amp=0.4, spec=0.3, shin=18, rim_col=(255, 150, 120)))
+    blobs = [((18, 31), (178, 30, 26)), ((27, 22.5), (236, 182, 52)), ((39, 20.5), (40, 110, 200)),
+             ((45, 32), (60, 160, 70)), ((31, 42.5), (236, 230, 214))]
+    for (x, y), c in blobs:
+        d = circle(x, y, 4.6) + 0.8 * (fbm(72 + int(x), 6, 2) - 0.5)
+        p.part(d, lit(d, c, radius=2.6, spec=0.9, shin=34, rim=0.3), edge=0.6, edge_k=0.6)
+    handle = line(61, 61, 47, 45, 4.2)
+    ferrule = line(47, 45, 42.5, 39.5, 4.6)
+    tip = union(line(42.5, 39.5, 39, 35.5, 3.8), circle(38, 34.3, 1.6))
+    p.shadow(union(handle, ferrule, tip), 1.6, 2.0, 1.4, 0.6)
+    p.part(handle, lit(handle, (120, 30, 30), radius=2.1, spec=0.7, shin=30), edge=0.6)
+    p.part(ferrule, lit(ferrule, BRASS, radius=2.3, spec=0.9, shin=30), edge=0.6)
+    p.part(tip, lit(tip, (40, 110, 200), radius=1.8, spec=0.6, shin=30), edge=0.6)
 
 
 def icon_help(p):
-    # brass coin with a blue enamel face and a cream question mark
-    coin = circle(32, 32, 26)
-    silhouette(p, coin)
-    p.part(coin, shade(coin, BRASS, bevel=2.2, gloss=0.2), outline=0)
-    face = circle(32, 32, 21.6)
-    p.part(face, shade(face, BLUE, bevel=2.2, inset=True, gloss=0.35), outline=0.9, outline_col=SEAM)
-    q = union(arc(32, 25, 6.6, 180, 450) - 3.0, line(32, 31.6, 32, 35.5, 6.0), circle(32, 44.4, 3.7))
-    p.part(q, shade(q, CREAM, bevel=1.4, bevel_k=0.45), outline=1.2)
+    # a slate rune stone with a carved question mark burning gold
+    stone = circle(32, 33, 25) + 1.6 * (fbm(81, 2, 3) - 0.5) * 2
+    q = union(arc(32, 25.5, 7.4, 180, 450) - 3.0, line(32, 32.8, 32, 37.5, 6.0), circle(32, 46.5, 3.7))
+    p.shadow(stone)
+    p.part(stone, lit(stone, SLATE, radius=5.0, tex=fbm(82, 4, 5), tex_amp=0.5, spec=0.2, shin=12,
+                      rim_col=(110, 150, 255), rim=0.45))
+    p.fill(cover(np.abs(circle(32, 33, 19.5)) - 0.5) * (0.5 + 0.5 * fbm(83, 4, 3)), (20, 20, 28), 0.6)
+    p.fill(cover(shifted(q, -0.9, -0.9) - 0.9), (14, 12, 16), 0.9)               # carved groove
+    p.glow(q, (255, 160, 40), sigma=3.5, k=0.95)
+    heat = np.clip((PY - 18) / 32, 0, 1)
+    p.fill(cover(q), lerp((255, 248, 200), (255, 150, 40), heat))
 
 
 ICON_DEFS = {
-    "main": icon_main,
-    "phrases": icon_phrases,
-    "animate": icon_animate,
-    "badges": icon_badges,
-    "channels": icon_channels,
-    "behavior": icon_behavior,
-    "cosmetic": icon_cosmetic,
-    "help": icon_help,
+    "main": (icon_main, (150, 46, 36), (24, 6, 6), 1),
+    "phrases": (icon_phrases, (54, 104, 132), (8, 16, 26), 2),
+    "animate": (icon_animate, (96, 50, 160), (12, 4, 28), 3),
+    "badges": (icon_badges, (56, 78, 140), (8, 10, 28), 4),
+    "channels": (icon_channels, (30, 96, 96), (4, 14, 18), 5),
+    "behavior": (icon_behavior, (110, 92, 70), (16, 13, 10), 6),
+    "cosmetic": (icon_cosmetic, (150, 66, 110), (22, 8, 18), 7),
+    "help": (icon_help, (60, 58, 140), (6, 6, 22), 8),
 }
 
 
-def make_icon(fn):
-    p = Painter()
+def make_icon(spec):
+    fn, light, dark, seed = spec
+    p = Painter(light, dark, seed)
     fn(p)
+    p.frame()
     return p.image()
 
 
@@ -461,9 +612,10 @@ def make_preview(icons, logo):
                 x = 10 + i * cell
                 s = 20 if size == "zoom" else size
                 ic = icons[name] if s == SIZE else icons[name].resize((s, s), Image.LANCZOS)
-                if alpha < 1:
-                    ic = ic.copy()
-                    ic.putalpha(ic.getchannel("A").point(lambda v: int(v * alpha + 0.5)))
+                if alpha < 1:      # dimmed like an unselected tab: neutral vertex colour
+                    a = ic.getchannel("A")
+                    ic = ic.convert("RGB").point(lambda v: int(v * alpha + 0.5))
+                    ic.putalpha(a)
                 if size == "zoom":
                     tile = Image.new("RGBA", (s, s), bg + (255,))
                     tile.alpha_composite(ic)
