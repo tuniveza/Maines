@@ -511,8 +511,9 @@ local function Maines_SurfacePath(key, role)
 end
 local Palette_ByName = {}
 for _, palette in ipairs(Color_Palettes) do Palette_ByName[palette.name] = palette end
--- Maines' own full-colour icons (tools/make_icons.py): brass, enamel and parchment with a dark
--- outline. Always drawn at white vertex colour - never tinted, never registered for /maincolor.
+-- Maines' own painted square icons (tools/make_icons.py), WoW ability-icon style with their own
+-- bevelled frame. Never tinted a colour and never registered for /maincolor (an unselected tab
+-- only darkens its icon to a neutral grey).
 local ICONS = TEXTURES .. "icons\\"
 local LOGO_TEXTURE = TEXTURES .. "logo.tga"
 
@@ -853,7 +854,10 @@ end
 -- A tab in the row under the title: icon above its label on the dark walnut tab strip, a soft
 -- highlight on hover, and - for the open page - a parchment surface that joins it to the
 -- content panel below, like a folder tab, with an accent bar along its top edge.
-local NAV_ICON_DIM = 0.72   -- alpha of an unselected, un-hovered tab's icon
+-- An unselected, un-hovered tab's icon is darkened to this grey (neutral, the way WoW dims an
+-- action button), never tinted a colour.
+local NAV_ICON_DIM = 0.72
+local NAV_ICON_SIZE = 22
 local function Maines_MakeNavButton(parent, width, height, text, iconPath)
     local btn = CreateFrame("Button", nil, parent)
     btn:SetSize(width, height)
@@ -891,18 +895,18 @@ local function Maines_MakeNavButton(parent, width, height, text, iconPath)
     Maines_RegisterTexture(bar)
     btn.bar = bar
 
-    -- Full-colour icon, never tinted: the open tab shows it at full strength, the others
-    -- slightly faded into the wood, and hovering brings it back up.
+    -- Square full-colour icon (its own dark bevelled frame is in the texture), never tinted:
+    -- the open tab shows it at full strength, the others a little darker, hover lights it up.
     local icon = btn:CreateTexture(nil, "ARTWORK")
-    icon:SetSize(20, 20)
+    icon:SetSize(NAV_ICON_SIZE, NAV_ICON_SIZE)
     icon:SetTexture(iconPath)
     icon:SetVertexColor(1, 1, 1)
-    icon:SetPoint("TOP", 0, -5)
+    icon:SetPoint("TOP", 0, -4)
     btn.icon = icon
 
     local fs = btn:CreateFontString(nil, "OVERLAY")
     fs:SetFontObject(Maines_Font_Button)
-    fs:SetPoint("BOTTOM", 0, 5)
+    fs:SetPoint("BOTTOM", 0, 3)
     fs:SetText(text)
     btn.text = fs
 
@@ -911,18 +915,18 @@ local function Maines_MakeNavButton(parent, width, height, text, iconPath)
         if selected then
             bg:Show(); bar:Show()
             fs:SetTextColor(INK[1], INK[2], INK[3])
-            icon:SetAlpha(1)
+            icon:SetVertexColor(1, 1, 1)
         else
             bg:Hide(); bar:Hide()
             fs:SetTextColor(PLATE_TEXT_SOFT[1], PLATE_TEXT_SOFT[2], PLATE_TEXT_SOFT[3])
-            icon:SetAlpha(NAV_ICON_DIM)
+            icon:SetVertexColor(NAV_ICON_DIM, NAV_ICON_DIM, NAV_ICON_DIM)
         end
     end
     btn:SetScript("OnEnter", function(self)
         hover:Show()
         if not self.selected then
             fs:SetTextColor(PLATE_TEXT[1], PLATE_TEXT[2], PLATE_TEXT[3])
-            icon:SetAlpha(1)
+            icon:SetVertexColor(1, 1, 1)
         end
     end)
     btn:SetScript("OnLeave", function(self)
@@ -1576,7 +1580,7 @@ local function Maines_BuildHelpContent()
         header:SetPoint("TOP", 0, y)
         header:SetWidth(HELP_CONTENT_WIDTH - 12)
         header:SetJustifyH("CENTER")
-        header:SetText(Maines_HelpIcon(section.icon, 18) .. "  " .. section.title)
+        header:SetText(Maines_HelpIcon(section.icon, 22) .. "  " .. section.title)
         local r, g, b = Maines_HexToRGB(winColor)
         header:SetTextColor(r, g, b)
         y = y - header:GetStringHeight() - 10

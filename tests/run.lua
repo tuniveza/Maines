@@ -561,15 +561,15 @@ test("15. the full-colour icons are never tinted: tabs dim instead, /maincolor l
         local t = o._texture
         if type(t) == "string" and t:find("\\icons\\", 1, true) then
             tabs = tabs + 1
-            local vc = o._set.SetVertexColor
-            if vc then
-                ok(vc[1] == 1 and vc[2] == 1 and vc[3] == 1,
-                    t .. " tinted to " .. q(vc[1]) .. "," .. q(vc[2]) .. "," .. q(vc[3]))
-            end
+            -- only ever neutral grey (a dim), never a colour; full white on the open tab
+            local vc = o._set.SetVertexColor or {1, 1, 1}
+            ok(vc[1] == vc[2] and vc[2] == vc[3],
+                t .. " tinted to " .. q(vc[1]) .. "," .. q(vc[2]) .. "," .. q(vc[3]))
             local btn = o._parent
             if btn and btn.SetSelected then
                 local want = btn.selected and 1 or 0.72
-                ok(math.abs((o._alpha or 1) - want) < 1e-6, t .. " alpha " .. q(o._alpha) .. ", want " .. want)
+                ok(math.abs(vc[1] - want) < 1e-6, t .. " brightness " .. q(vc[1]) .. ", want " .. want)
+                ok((o._alpha or 1) == 1, t .. " alpha " .. q(o._alpha))
             end
         end
     end
