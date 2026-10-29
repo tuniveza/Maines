@@ -17,7 +17,7 @@ CENTER = ' style="text-align: center;"'
 
 
 def build(md_text):
-    html = markdown.markdown(md_text, extensions=["tables", "fenced_code"])
+    html = markdown.markdown(md_text, extensions=["tables", "fenced_code", "nl2br"])
     # headings
     html = re.sub(r"<h([1-3])>", lambda m: f"<h{m.group(1)}{CENTER}>", html)
     # paragraphs that only hold a picture
