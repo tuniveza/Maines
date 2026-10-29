@@ -1,3 +1,21 @@
+# GLYPH.1
+
+A small revision of GLYPH: mostly a fresh coat of paint.
+
+### Changed
+
+- **New icons.** Every tab has a new hand-made icon in a painted, square style. The tab you're on shows in full colour.
+- **New fonts.** Thicker, easier-to-read text, with a different font for titles, headings, text and buttons.
+- **Palettes go further.** Each `/maincolor` palette now has its own paper texture and its own window border, and it also colours the title bar, the tab bar and the footer.
+- **Your palette is remembered.** The palette you pick now stays after a `/reload` or the next login.
+- **Centred input boxes.** Text you type in the name, bracket, phrase and badge-name boxes sits in the middle.
+- **Credits** now read Zuniversa / Tuniveza.
+
+### Fixed
+
+- The Rose badge's stem was stretched to about 15 dashes when sent. One-line badges now go out exactly as drawn.
+- The badge list cut off the bottom of its 11th row. It now shows 11 full rows before it scrolls.
+
 # GLYPH
 
 Updated for WoW 12.1.5.

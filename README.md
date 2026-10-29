@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/tuniveza/Maines/releases/latest"><img src="https://img.shields.io/badge/stamp-GLYPH-8B5E3C" alt="Current stamp: GLYPH"></a>
+  <a href="https://github.com/tuniveza/Maines/releases/latest"><img src="https://img.shields.io/badge/stamp-GLYPH.1-8B5E3C" alt="Current stamp: GLYPH.1"></a>
   <img src="https://img.shields.io/badge/WoW-12.1.5%20(Midnight)-3E6E96" alt="WoW 12.1.5 (Midnight)">
   <a href="https://www.curseforge.com/wow/addons/maines"><img src="https://img.shields.io/badge/CurseForge-Maines-F16436" alt="Maines on CurseForge"></a>
   <img src="https://img.shields.io/badge/built%20on-Ace3-C9A227" alt="Built on Ace3">
@@ -51,7 +51,7 @@ Every Maines release gets a name instead of a version number, stamped like a sea
 </tr>
 <tr>
 <td>🔩 <strong>A new coat of brass</strong></td>
-<td>Parchment, brushed brass, soft gradients, bevelled buttons and hand-made icons.</td>
+<td>Painted WoW-style icons, thicker fonts, and a textured frame for every palette (new in GLYPH.1).</td>
 </tr>
 </tbody>
 </table>
@@ -63,7 +63,7 @@ Full notes for every stamp: [CHANGELOG.md](CHANGELOG.md).
 **CurseForge app:** search for **Maines** and press Install.
 
 **By hand:**
-1. Download `Maines-GLYPH.zip` from the [Releases page](https://github.com/tuniveza/Maines/releases/latest).
+1. Download `Maines-GLYPH.1.zip` from the [Releases page](https://github.com/tuniveza/Maines/releases/latest).
 2. Unzip it into `World of Warcraft/_retail_/Interface/AddOns/`.
 3. You should now have a folder called `AddOns/Maines`.
 
@@ -179,7 +179,10 @@ One badge every 3 minutes. Your guild will thank you. Mostly.
 `/maincolor` (or right-click the minimap button) repaints the whole window from one of 13 palettes.
 Some come from famous paintings: *The Starry Night*, *The Great Wave*, *The Kiss*, *Nighthawks*, *The Scream* and more.
 Some come from closer to home: *Gnomeregan Copper*, *Undermine Neon*, *Ironforge Brass & Steel*, *Verdigris Goblin*.
-Pick a swatch yourself on the **Cosmetic** page. The reading text stays dark ink, so no roll can make it unreadable.
+Each palette brings its own paper texture and its own frame: riveted brass, gilded mosaic, weathered copper, neon tubing and more.
+It colours the title bar, tab bar and footer too, and Maines remembers your pick after a `/reload`.
+
+Pick a swatch yourself on the **Cosmetic** page. The reading text always stays readable, whatever you roll.
 
 <p align="center">
   <img src="docs/media/palettes.gif" width="560" alt="The Maines window being repainted by several /maincolor rolls">
