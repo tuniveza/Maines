@@ -234,7 +234,31 @@ def render_line(key, size, runs, shadow=None):
                 rgb = np.array(col[:3], np.float32)
                 canvas[..., :3] = canvas[..., :3] * (1 - a) + rgb * a
                 canvas[..., 3:4] = canvas[..., 3:4] + a * (1 - canvas[..., 3:4])
+            elif "tex" in r and override is None:
+                stamp_tex(r, x, w)
             x += w
+
+    def stamp_tex(r, x, w):
+        # |T...|t inline icon: centred on the line, tinted by the escape's r:g:b if it has them
+        src = load_texture(r["tex"])
+        if src is None:
+            return
+        tw, th = max(1, int(round(w))), max(1, int(round(r.get("h", r["w"]) * S)))
+        im = Image.fromarray((src * 255).astype(np.uint8), "RGBA").resize((tw, th), Image.LANCZOS)
+        img = np.asarray(im, np.float32) / 255.0
+        spec = r.get("spec") or []
+        if len(spec) >= 14 and all(str(v).strip().isdigit() for v in spec[11:14]):
+            img = img * np.array([int(v) / 255 for v in spec[11:14]] + [1], np.float32)
+        ix, iy = int(round(x)), int(round(pad + (asc + desc) / 2 - th / 2))
+        x0, y0 = max(ix, 0), max(iy, 0)
+        x1, y1 = min(ix + tw, canvas.shape[1]), min(iy + th, canvas.shape[0])
+        if x1 <= x0 or y1 <= y0:
+            return
+        sub = img[y0 - iy:y1 - iy, x0 - ix:x1 - ix]
+        a = sub[..., 3:4]
+        dst = canvas[y0:y1, x0:x1]
+        dst[..., :3] = dst[..., :3] * (1 - a) + sub[..., :3] * a
+        dst[..., 3:4] = dst[..., 3:4] + a * (1 - dst[..., 3:4])
 
     if shadow:
         sx, sy = shadow["offset"]
@@ -301,12 +325,10 @@ def draw_text(cv, item):
             box = [x0, y0, max(0, x1 - x0), max(0, y1 - y0)]
         clip = box
     for i, line in enumerate(lines):
-        runs = [r for r in line["runs"] if "text" in r]
-        if any("tex" in r for r in line["runs"]):
-            print("  ! inline texture in text not drawn:", item.get("lines"))
+        runs = [r for r in line["runs"] if "text" in r or "tex" in r]
         if not runs:
             continue
-        if item.get("truncate"):
+        if item.get("truncate") and not any("tex" in r for r in runs):
             runs = truncate_runs(runs, key, size, w)
         arr, pad_x, base, lw_px = render_line(key, size, runs, item.get("shadow"))
         lw = lw_px / S
