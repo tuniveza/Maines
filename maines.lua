@@ -881,6 +881,75 @@ do
         end)
     end
 
+    -- The window's bars (tab strip, status line, footer): the same material as the title band
+    -- and frame, only deeper - a fill toned strongly toward the palette (a deep shade of the band
+    -- tone, not near-black), the band's own metal streaks (the palette's band texture, swapped
+    -- and tinted like every overlay) laid over it at a visible strength, and a bevel: a fine top
+    -- highlight, a dark bottom edge, a soft shadow inside both edges. The streaks and shadows only
+    -- ever darken the fill, and the fill is held to BAR_BASE's sRGB luminance (HoldContrast), so
+    -- cream text keeps at least BAR_BASE's 4.8:1 on every palette. Everything here is a plain
+    -- WHITE8X8 or tiled .tga texture with SetGradient / SetVertexColor - the calls the title band
+    -- already uses in game. `tex` is the bar's existing BACKGROUND texture; plate.tone holds the
+    -- fill's two stops for the tests.
+    local BAR_BASE, BAR_BLEND = {0.33, 0.23, 0.12}, 0.75
+    function Maines_Look.DressBar(bar, tex, lo, hi)
+        tex:SetTexture("Interface\\Buttons\\WHITE8X8")
+        local stops = {
+            {BAR_BASE[1] * lo, BAR_BASE[2] * lo, BAR_BASE[3] * lo},
+            {BAR_BASE[1] * hi, BAR_BASE[2] * hi, BAR_BASE[3] * hi},
+        }
+        local function repaint(r, g, b)
+            local out = {}
+            for i, base in ipairs(stops) do
+                if r then
+                    out[i] = Maines_Look.HoldContrast({Maines_ToneLike(base, r, g, b, BAR_BLEND)}, base, true)
+                else
+                    out[i] = {base[1], base[2], base[3]}
+                end
+            end
+            bar.tone = out
+            tex:SetGradient("VERTICAL", CreateColor(out[1][1], out[1][2], out[1][3], 1), CreateColor(out[2][1], out[2][2], out[2][3], 1))
+        end
+        repaint()
+        table.insert(Maines_Textures, {repaint = repaint})
+
+        local streaks = bar:CreateTexture(nil, "BACKGROUND", nil, 2)
+        streaks:SetAllPoints()
+        streaks:SetTexture(BRUSHED_TEXTURE, "REPEAT", "REPEAT")
+        streaks:SetHorizTile(true)
+        streaks:SetVertTile(true)
+        streaks:SetVertexColor(0.12, 0.07, 0.03)
+        streaks:SetAlpha(0.55)
+        Maines_RegisterSurface(streaks, "metal", {0.12, 0.07, 0.03})
+
+        local function edge(point, height, a, b)
+            local t = bar:CreateTexture(nil, "BORDER")
+            t:SetTexture("Interface\\Buttons\\WHITE8X8")
+            t:SetPoint(point .. "LEFT")
+            t:SetPoint(point .. "RIGHT")
+            t:SetHeight(height)
+            t:SetGradient("VERTICAL", a, b)
+            return t
+        end
+        -- soft inner shadows (VERTICAL runs bottom color -> top color)
+        edge("TOP", 6, CreateColor(0, 0, 0, 0), CreateColor(0, 0, 0, 0.28))
+        edge("BOTTOM", 5, CreateColor(0, 0, 0, 0.32), CreateColor(0, 0, 0, 0))
+        local shine = bar:CreateTexture(nil, "ARTWORK", nil, 7)
+        shine:SetTexture("Interface\\Buttons\\WHITE8X8")
+        shine:SetVertexColor(1, 0.92, 0.76, 0.16)
+        shine:SetHeight(1)
+        shine:SetPoint("TOPLEFT", 0, -1)
+        shine:SetPoint("TOPRIGHT", 0, -1)
+        local dark = bar:CreateTexture(nil, "ARTWORK", nil, 7)
+        dark:SetTexture("Interface\\Buttons\\WHITE8X8")
+        dark:SetVertexColor(0, 0, 0, 0.55)
+        dark:SetHeight(1)
+        dark:SetPoint("BOTTOMLEFT")
+        dark:SetPoint("BOTTOMRIGHT")
+        bar.maines_streaks = streaks
+        return bar
+    end
+
     -- A plate drawn as a backdrop (fill PLATE_BG, edge BORDER_DARK), for the feature pages.
     function Maines_Look.TonePlateBackdrop(frame)
         Maines_Look.RegisterPlate(frame, {PLATE_BG, BORDER_DARK}, function(fill, edge)
@@ -2334,7 +2403,7 @@ tabBar:SetHeight(TAB_BAR_HEIGHT)
 local tabBarBg = tabBar:CreateTexture(nil, "BACKGROUND")
 tabBarBg:SetAllPoints()
 tabBarBg:SetTexture("Interface\\Buttons\\WHITE8X8")
-Maines_Look.TonePlateGradient(tabBar, tabBarBg, 0.8, 1.2)
+Maines_Look.DressBar(tabBar, tabBarBg, 0.78, 1.0)
 
 local contentFrame = CreateFrame("Frame", nil, Maines_Window, "BackdropTemplate")
 contentFrame:SetPoint("TOPLEFT", tabBar, "BOTTOMLEFT", 0, 0)
@@ -2367,6 +2436,18 @@ for i, def in ipairs(TAB_DEFS) do
     panel:Hide()
     Maines_Panels[def.key] = panel
 end
+-- A faint engraved divider in the gap between neighbouring tabs: a dark cut with a lit edge.
+for i = 1, #TAB_DEFS - 1 do
+    local x = 8 + i * (TAB_WIDTH + TAB_GAP) - TAB_GAP
+    for k, c in ipairs({{0, 0, 0, 0.38}, {1, 0.92, 0.76, 0.10}}) do
+        local line = tabBar:CreateTexture(nil, "ARTWORK")
+        line:SetTexture("Interface\\Buttons\\WHITE8X8")
+        line:SetVertexColor(c[1], c[2], c[3], c[4])
+        line:SetWidth(1)
+        line:SetPoint("TOPLEFT", x + k - 1, -10)
+        line:SetPoint("BOTTOMLEFT", x + k - 1, 8)
+    end
+end
 
 -- Footer: the maker's credits, with the GLYPH stamp beside the second line - centered,
 -- always visible.
@@ -2381,7 +2462,7 @@ footerBg:SetTexture("Interface\\Buttons\\WHITE8X8")
 do
     local footerRule = footerBar:CreateTexture(nil, "ARTWORK")
     footerRule:SetTexture("Interface\\Buttons\\WHITE8X8")
-    Maines_Look.TonePlateGradient(footerBar, footerBg, 0.75, 1.15)
+    Maines_Look.DressBar(footerBar, footerBg, 0.75, 1.0)
     Maines_Look.RegisterPlate(footerRule, {BORDER_DARK}, function(c) footerRule:SetVertexColor(c[1], c[2], c[3]) end)
     footerRule:SetHeight(1)
     footerRule:SetPoint("TOPLEFT")
@@ -2422,13 +2503,7 @@ do
     local bg = bar:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints()
     bg:SetTexture("Interface\\Buttons\\WHITE8X8")
-    Maines_Look.TonePlateGradient(bar, bg, 0.9, 1.1)
-    local shine = bar:CreateTexture(nil, "ARTWORK")
-    shine:SetTexture("Interface\\Buttons\\WHITE8X8")
-    shine:SetVertexColor(1, 0.9, 0.7, 0.10)
-    shine:SetHeight(1)
-    shine:SetPoint("TOPLEFT")
-    shine:SetPoint("TOPRIGHT")
+    Maines_Look.DressBar(bar, bg, 0.85, 1.0)
 
     local text = bar:CreateFontString(nil, "OVERLAY")
     text:SetFontObject(Maines_Font_Body)

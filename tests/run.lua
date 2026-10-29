@@ -650,8 +650,15 @@ test("16. a palette tones the title bands, tab strip, footer and plates, and swa
                 end
             end
         end
-        local walnutHi = {0.24 * 1.2, 0.16 * 1.2, 0.09 * 1.2}
-        ok(wlum(ns.TabBar.tone[2]) <= wlum(walnutHi) + 1e-9, palette.name .. ": tab strip no lighter than the walnut")
+        -- the bars (tab strip, status line, footer): a deep shade of the palette, not near-black,
+        -- with the palette's band streaks over them
+        local walnutHi = {0.33, 0.23, 0.12}   -- Maines_Look.DressBar's BAR_BASE
+        for _, bar in ipairs({ns.TabBar, ns.StatusBar, ns.FooterBar}) do
+            local hi = bar.tone[2]
+            ok(wlum(hi) <= wlum(walnutHi) + 1e-9, palette.name .. ": bar no lighter than its base")
+            ok(wlum(hi) >= 0.5 * wlum(walnutHi), palette.name .. ": bar not near-black")
+            eq(bar.maines_streaks._texture, base .. "palettes\\" .. palette.surface .. "_band.tga", palette.name .. ": bar streaks")
+        end
         local moved = math.abs(ns.TabBar.tone[2][1] - walnutHi[1]) + math.abs(ns.TabBar.tone[2][3] - walnutHi[3])
         ok(moved > 0.002, palette.name .. ": tab strip takes the palette color")
         -- the window frames: every piece swapped to the palette's frame, strips repeating whole
@@ -741,7 +748,7 @@ test("16. a palette tones the title bands, tab strip, footer and plates, and swa
     end
     for _, w in ipairs(windows) do eq(w.maines_frame.tl._texture, base .. "frames\\brass\\tl.tga", "start frame restored") end
     -- the start look's weakest pair is the soft cream on the tab strip's light end, 5.6:1
-    ok(worst >= 5.5, ("cream text on every toned plate keeps the start look's contrast (worst %.2f)"):format(worst))
+    ok(worst >= 4.5, ("cream text on every toned plate and bar keeps at least 4.5:1 (worst %.2f)"):format(worst))
     note(("(%d overlays, %d plates, 3 window frames, %d palettes checked; worst plate text contrast %.2f)"):format(
         #overlays, #plates + 2, #ns.Palettes, worst))
     Maines_NoteFrame:Hide(); Maines_Help_Frame:Hide()
