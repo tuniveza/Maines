@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Builds the README header banner (run from anywhere: python3 tools/media_banner.py).
 
-Writes docs/media/banner.png (1280x320): the Maines logo on the left, the name and the
-tagline on the right, on the addon's own parchment with its brass trim. Surfaces reuse the
+Writes docs/media/banner.png (2560x640: a 1280x320 layout drawn at 2x): the Maines logo
+beside the name, with a brass rule and the tagline under them, all centred, on the addon's
+own parchment with its brass trim. Surfaces reuse the
 in-game recipe from maines.lua: flat colour + soft vertical shade + textures/grain.tga tinted
 (0.30, 0.18, 0.06); the top and bottom trim bands use textures/brushed.tga over brass.
 
@@ -21,8 +22,9 @@ LOGO = os.path.join(ROOT, "docs", "branding", "maines-logo-1200.png")
 GRAIN = os.path.join(ROOT, "textures", "grain.tga")
 BRUSHED = os.path.join(ROOT, "textures", "brushed.tga")
 
-W, H = 1280, 320
-SS = 2  # draw at 2x, then downsample once for smooth edges
+W, H = 1280, 320  # layout size; every pixel size below is in these units
+S = 2   # output scale: the PNG is W*S x H*S
+SS = 2  # supersampling on top of that: draw at S*SS, then downsample once for smooth edges
 
 TITLE = "Maines"
 TAGLINE = "Take your main name to the chat frame, then gtfo."
@@ -95,8 +97,8 @@ def to_img(arr):
 
 
 def build():
-    w, h = W * SS, H * SS
-    s = SS
+    s = S * SS
+    w, h = W * s, H * s
 
     # Parchment body: CONTENT_BG with the in-game soft shade and grain.
     img = vgrad(h, w, [c * 1.04 for c in CONTENT_BG], [c * 0.92 for c in CONTENT_BG])
@@ -117,12 +119,21 @@ def build():
         strip = over(strip, BRUSH_TINT, tiled_alpha(BRUSHED, w, y1 - y0, s) * 0.38)
         img[y0:y1] = strip
 
+    # Layout, all centred: [logo] Maines on one row, a brass rule under it, the tagline below.
+    # The title fonts are needed now to size the row; drawing happens after the logo is printed.
+    title_f = font(TITLE_FONTS, 112 * s)
+    tag_f = font(TAG_FONTS, 32 * s)
+    probe = ImageDraw.Draw(Image.new("L", (1, 1)))
+    tb = probe.textbbox((0, 0), TITLE, font=title_f, anchor="ls")
+    gb = probe.textbbox((0, 0), TAGLINE, font=tag_f, anchor="ls")
+    title_w, title_h = tb[2] - tb[0], -tb[1]   # cap height above baseline (no descenders)
+    tag_w, tag_h = gb[2] - gb[0], -gb[1]
+    size = 156 * s                              # logo square
     # Logo: its ink is printed straight onto the banner's parchment (luminance -> ink alpha),
     # so the logo's own paper and burnt edge melt away and only the M and a hint of its
     # mottling remain. The crop trims the burnt border; a feathered mask hides any rest.
-    pad = 30 * s
-    size = h - 2 * pad
-    lx, ly = 40 * s, pad
+    # (Mask sizes are in logo-square units: they were tuned on a 260px square.)
+    k = size / 260
     src = Image.open(LOGO).convert("RGB")
     c = int(src.width * 0.042)
     logo = src.crop((c, c, src.width - c, src.height - c)).resize((size, size), Image.LANCZOS)
@@ -132,9 +143,25 @@ def build():
     # stain, faded out well inside the square so no edge shows.
     ink_a = np.clip((0.27 - lum) / (0.27 - 0.17), 0, 1) * 0.94
     stain_a = np.clip((0.50 - lum) / 0.30, 0, 1) * 0.16
-    ink_m = rounded_mask(size, size, (4 * s, 4 * s, size - 4 * s, size - 4 * s), 20 * s, blur=3 * s)
-    stain_m = rounded_mask(size, size, (22 * s, 22 * s, size - 22 * s, size - 22 * s), 60 * s, blur=22 * s)
+    e1, e2 = int(4 * k * s), int(22 * k * s)
+    ink_m = rounded_mask(size, size, (e1, e1, size - e1, size - e1), 20 * k * s, blur=3 * k * s)
+    stain_m = rounded_mask(size, size, (e2, e2, size - e2, size - e2), 60 * k * s, blur=22 * k * s)
     alpha = np.maximum(ink_a * ink_m, stain_a * stain_m)
+
+    # Lay out by the logo's visible ink, not its square: the square has empty margins.
+    ys, xs = np.nonzero(alpha > 0.25)
+    vt, vb, vl, vr = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
+    vis_h = vb - vt
+    gap_logo = 26 * s
+    gap_rule, gap_tag = 18 * s, 24 * s
+    block = vis_h + gap_rule + 2 * s + gap_tag + tag_h + 6 * s  # + tagline descenders ("y", "g")
+    top = (h - block) // 2
+    group_w = (vr - vl) + gap_logo + title_w
+    lx, ly = (w - group_w) // 2 - vl, top - vt
+    tx = lx + vr + gap_logo - tb[0]
+    base1 = top + vis_h // 2 + title_h // 2
+    rule_y = top + vis_h + gap_rule
+    base2 = rule_y + 2 * s + gap_tag + tag_h
     region = img[ly:ly + size, lx:lx + size]
     img[ly:ly + size, lx:lx + size] = over(region, INK, alpha)
 
@@ -147,37 +174,23 @@ def build():
     inset = band + 5 * s
     d.rectangle((inset, inset, w - 1 - inset, h - 1 - inset), outline=rgb(ACCENT), width=s)
 
-    # Text block to the right of the logo.
-    tx = lx + size + 40 * s
-    title_f = font(TITLE_FONTS, 128 * s)
-    tag_f = font(TAG_FONTS, 33 * s)
-    tb = d.textbbox((0, 0), TITLE, font=title_f, anchor="ls")
-    gb = d.textbbox((0, 0), TAGLINE, font=tag_f, anchor="ls")
-    title_h = -tb[1]  # cap height above baseline (no descenders in "Maines")
-    tag_h = -gb[1]
-    gap_rule = 26 * s
-    block = title_h + gap_rule * 2 + tag_h
-    top = (h - block) // 2
-    base1 = top + title_h
-    rule_y = base1 + gap_rule
-    base2 = rule_y + gap_rule + tag_h - 2 * s
-
     # Title: ink, with a faint light edge below for a pressed-in look.
     d.text((tx, base1 + 2 * s), TITLE, font=title_f, anchor="ls", fill=rgb((1, 0.95, 0.82), 0.55))
     d.text((tx, base1), TITLE, font=title_f, anchor="ls", fill=rgb(INK))
 
-    # Brass rule under the title, fading out to the right like the addon's section rules.
-    rule_w = max(tb[2], gb[2]) + 10 * s
+    # Brass rule, centred, fading out at both ends, with a brass diamond in the middle.
+    rule_w = tag_w + 120 * s
+    rx = (w - rule_w) // 2
     rule = Image.new("RGBA", (rule_w, 2 * s), rgb(ACCENT) + (255,))
-    fade = np.clip(np.linspace(1.6, 0, rule_w), 0, 1)
+    fade = np.clip((1 - np.abs(np.linspace(-1, 1, rule_w))) * 2.2, 0, 1)
     rule.putalpha(Image.fromarray((np.tile(fade, (2 * s, 1)) * 230).astype(np.uint8)))
-    out.paste(rule, (tx, rule_y), rule)
-    dot = 4 * s
-    d.ellipse((tx - dot - 6 * s, rule_y + s - dot, tx - 6 * s + dot, rule_y + s + dot), fill=rgb(ACCENT))
+    out.paste(rule, (rx, rule_y), rule)
+    cx, cy, r = w // 2, rule_y + s, 6 * s
+    d.polygon(((cx - r, cy), (cx, cy - r), (cx + r, cy), (cx, cy + r)), fill=rgb(ACCENT))
 
-    d.text((tx, base2), TAGLINE, font=tag_f, anchor="ls", fill=rgb(INK_SOFT, 1, 0.80))
+    d.text((w // 2, base2), TAGLINE, font=tag_f, anchor="ms", fill=rgb(INK_SOFT, 1, 0.80))
 
-    out = out.resize((W, H), Image.LANCZOS)
+    out = out.resize((W * S, H * S), Image.LANCZOS)
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     out.save(OUT, optimize=True)
     optimise(OUT)

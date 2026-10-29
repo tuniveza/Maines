@@ -17,7 +17,7 @@ if #mock.loadErrors > 0 then
 end
 local ns, slash, sendChat = mock.ns, mock.slash, mock.sendChat
 
-local MAIN, ALT = "Misamu", "Fizzlebolt"
+local MAIN, ALT = "Tuniveza", "Fizzlebolt"
 
 -- ---------------------------------------------------------------- tiny JSON writer
 local function jstr(s)

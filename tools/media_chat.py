@@ -17,6 +17,7 @@ import subprocess
 import sys
 import tempfile
 
+import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -27,8 +28,10 @@ AGAVE_BOLD = os.path.join(ROOT, "fonts", "agave", "Agave-Bold.ttf")
 AGAVE = os.path.join(ROOT, "fonts", "agave", "Agave-Regular.ttf")
 NBSP = " "
 
-CHAT_PX = 17          # chat text size in pixels
-LINE_H = 20           # chat line spacing
+S = 2                 # render scale: every pixel size below is a 1x size times S (README art at 2x)
+CHAT_PX_1X = 17       # chat text size in pixels at 1x (what badge fitting measures against)
+CHAT_PX = CHAT_PX_1X * S
+LINE_H = 20 * S       # chat line spacing
 
 # WoW's default chat colours (ChatTypeInfo)
 COL = {
@@ -55,12 +58,16 @@ def narrow_font_path():
     return NARROW_FONT
 
 
-CHAT_FONT = None
-def chat_font():
-    global CHAT_FONT
-    if CHAT_FONT is None:
-        CHAT_FONT = ImageFont.truetype(narrow_font_path(), CHAT_PX, layout_engine=ImageFont.Layout.BASIC)
-    return CHAT_FONT
+_FONTS = {}
+def chat_font(px=CHAT_PX):
+    if px not in _FONTS:
+        _FONTS[px] = ImageFont.truetype(narrow_font_path(), px, layout_engine=ImageFont.Layout.BASIC)
+    return _FONTS[px]
+
+
+def agave(size, bold=False):
+    """Agave at a 1x point size, rendered at S times that."""
+    return ImageFont.truetype(AGAVE_BOLD if bold else AGAVE, size * S)
 
 
 def unescape(s):
@@ -70,7 +77,9 @@ def unescape(s):
 
 # ------------------------------------------------------------------ real chat text from the add-on
 def measured_widths():
-    f = chat_font()
+    # Measured at the 1x chat size, so FitBadgeLines picks the same padding as it would in game
+    # at 14pt/17px; the art is then drawn at S times that size.
+    f = chat_font(CHAT_PX_1X)
     base = f.getlength("xx")
     syms = [chr(c) for c in range(32, 127)] + [NBSP, "||"]
     rows = []
@@ -107,11 +116,11 @@ def backdrop(w, h, seed=7):
             mix = max(0, min(1, (y - 6) / 4))
             c = [int(sky[i] * (1 - mix) + ground[i] * mix + rnd.uniform(-9, 9)) for i in range(3)]
             d.point((x, y), tuple(c))
-    img = small.resize((w, h), Image.BICUBIC).filter(ImageFilter.GaussianBlur(18))
+    img = small.resize((w, h), Image.BICUBIC).filter(ImageFilter.GaussianBlur(18 * S))
     # vignette
     vig = Image.new("L", (w, h), 0)
     ImageDraw.Draw(vig).ellipse((-w * 0.3, -h * 0.5, w * 1.3, h * 1.5), fill=255)
-    vig = vig.filter(ImageFilter.GaussianBlur(60))
+    vig = vig.filter(ImageFilter.GaussianBlur(60 * S))
     dark = Image.new("RGB", (w, h), (10, 10, 12))
     return Image.composite(img, dark, vig)
 
@@ -122,15 +131,28 @@ def shade(base, box, color=(0, 0, 0), alpha=0.55, radius=0):
     base.alpha_composite(over)
 
 
-def text_runs(draw, x, y, runs, font=None, shadow=True):
-    """Draws [(text, rgb)] left to right with WoW's 1px drop shadow. Returns the end x."""
-    font = font or chat_font()
+def text_width(text):
+    """Width of chat text: the 1x layout (what badge fitting measured), times S."""
+    return chat_font(CHAT_PX_1X).getlength(unescape(text)) * S
+
+
+def text_runs(draw, x, y, runs, shadow=True):
+    """Draws [(text, rgb)] left to right with WoW's 1px drop shadow. Returns the end x.
+
+    Glyphs are drawn at the S-times font size, each placed where the 1x layout puts it (times S).
+    Hinted advances don't scale exactly (a 4px "|" at 17px is 7px at 34px, not 8), so laying the
+    line out at 34px would drift badge art out of the alignment FitBadgeLines chose at 1x."""
+    f1, f = chat_font(CHAT_PX_1X), chat_font()
     for text, col in runs:
         text = unescape(text)
-        if shadow:
-            draw.text((x + 1, y + 1), text, font=font, fill=(0, 0, 0, 230))
-        draw.text((x, y), text, font=font, fill=col + (255,))
-        x += font.getlength(text)
+        for i, ch in enumerate(text):
+            if ch == " " or ch == NBSP:
+                continue
+            cx = x + round(f1.getlength(text[:i]) * S)
+            if shadow:
+                draw.text((cx + S, y + S), ch, font=f, fill=(0, 0, 0, 230))
+            draw.text((cx, y), ch, font=f, fill=col + (255,))
+        x += f1.getlength(text) * S
     return x
 
 
@@ -156,30 +178,30 @@ def editbox_prefix(kind, target=None):
             "WHISPER": f"Tell {target}: "}[kind]
 
 
-def plate(draw, box, radius=6):
+def plate(draw, box, radius=6 * S):
     """Maines' dark walnut plate with a brass edge."""
-    draw.rounded_rectangle(box, radius=radius, fill=PLATE_BG + (235,), outline=ACCENT + (255,), width=1)
+    draw.rounded_rectangle(box, radius=radius, fill=PLATE_BG + (235,), outline=ACCENT + (255,), width=S)
     x0, y0, x1, y1 = box
-    draw.line((x0 + radius, y0 + 1, x1 - radius, y0 + 1), fill=(120, 86, 44, 255))
+    draw.line((x0 + radius, y0 + S + S // 2, x1 - radius, y0 + S + S // 2), fill=(120, 86, 44, 255), width=S)
 
 
 def keycap(img, x, y, label, pressed):
     d = ImageDraw.Draw(img)
-    f = ImageFont.truetype(AGAVE_BOLD, 13)
-    w = int(f.getlength(label)) + 18
-    off = 2 if pressed else 0
+    f = agave(13, bold=True)
+    w = int(f.getlength(label)) + 18 * S
+    off = 2 * S if pressed else 0
     if not pressed:
-        d.rounded_rectangle((x, y + 3, x + w, y + 27), radius=5, fill=(20, 14, 8, 255))
-    d.rounded_rectangle((x, y + off, x + w, y + 24 + off), radius=5,
-                        fill=(ACCENT if pressed else (92, 66, 36)) + (255,), outline=(30, 20, 10, 255))
-    d.text((x + 9, y + 5 + off), label, font=f, fill=PLATE_TEXT + (255,))
+        d.rounded_rectangle((x, y + 3 * S, x + w, y + 27 * S), radius=5 * S, fill=(20, 14, 8, 255))
+    d.rounded_rectangle((x, y + off, x + w, y + 24 * S + off), radius=5 * S,
+                        fill=(ACCENT if pressed else (92, 66, 36)) + (255,), outline=(30, 20, 10, 255), width=S)
+    d.text((x + 9 * S, y + 5 * S + off), label, font=f, fill=PLATE_TEXT + (255,))
     return x + w
 
 
 # ------------------------------------------------------------------ the chat frame
 class ChatFrame:
-    W, H = 760, 336
-    CX0, CY0, CX1 = 16, 80, 744         # chat box left/top/right
+    W, H = 760 * S, 336 * S
+    CX0, CY0, CX1 = 16 * S, 80 * S, 744 * S     # chat box left/top/right
     ROWS = 9
 
     def __init__(self, caption_fn=None):
@@ -189,7 +211,7 @@ class ChatFrame:
 
     @property
     def cy1(self):
-        return self.CY0 + 10 + self.ROWS * LINE_H
+        return self.CY0 + 10 * S + self.ROWS * LINE_H
 
     def render(self, edit=None, caption=None, keys=None):
         img = self.bg.copy()
@@ -198,34 +220,35 @@ class ChatFrame:
         if caption:
             caption(img)
         # tabs
-        tf = ImageFont.truetype(LIB_SANS, 12)
+        tf = ImageFont.truetype(LIB_SANS, 12 * S)
         tx = self.CX0
         for i, name in enumerate(["General", "Combat Log", "Guild"]):
-            w = int(tf.getlength(name)) + 22
-            shade(img, (tx, self.CY0 - 22, tx + w, self.CY0 - 1), alpha=0.62 if i == 0 else 0.35, radius=3)
-            d.text((tx + 11, self.CY0 - 18), name, font=tf,
+            w = int(tf.getlength(name)) + 22 * S
+            shade(img, (tx, self.CY0 - 22 * S, tx + w, self.CY0 - S), alpha=0.62 if i == 0 else 0.35,
+                  radius=3 * S)
+            d.text((tx + 11 * S, self.CY0 - 18 * S), name, font=tf,
                    fill=(GOLD if i == 0 else (200, 170, 60)) + (255,))
-            tx += w + 3
+            tx += w + 3 * S
         # chat box
         shade(img, (self.CX0, self.CY0, self.CX1, self.cy1), alpha=0.42)
         visible = self.lines[-self.ROWS:]
-        y = self.cy1 - 6 - len(visible) * LINE_H
+        y = self.cy1 - 6 * S - len(visible) * LINE_H
         for runs in visible:
-            text_runs(d, self.CX0 + 8, y, runs)
+            text_runs(d, self.CX0 + 8 * S, y, runs)
             y += LINE_H
         # edit box
-        ey = self.cy1 + 6
+        ey = self.cy1 + 6 * S
         active = edit is not None and edit.get("active", True)
-        shade(img, (self.CX0, ey, self.CX1, ey + 28), alpha=0.75 if active else 0.3, radius=2)
-        d.rectangle((self.CX0, ey, self.CX1, ey + 28),
-                    outline=(110, 110, 110, 255) if active else (70, 70, 70, 160))
+        shade(img, (self.CX0, ey, self.CX1, ey + 28 * S), alpha=0.75 if active else 0.3, radius=2 * S)
+        d.rectangle((self.CX0, ey, self.CX1, ey + 28 * S),
+                    outline=(110, 110, 110, 255) if active else (70, 70, 70, 160), width=S)
         if active:
             kind = edit["kind"]
             c = COL[kind]
             pre = editbox_prefix(kind, edit.get("target"))
-            x = text_runs(d, self.CX0 + 8, ey + 4, [(pre, c), (edit.get("text", ""), c)])
+            x = text_runs(d, self.CX0 + 8 * S, ey + 4 * S, [(pre, c), (edit.get("text", ""), c)])
             if edit.get("cursor", True):
-                d.line((x + 1, ey + 6, x + 1, ey + 22), fill=(255, 255, 255, 230), width=1)
+                d.line((x + S, ey + 6 * S, x + S, ey + 22 * S), fill=(255, 255, 255, 230), width=S)
         if keys:
             keys(img, ey)
         return img
@@ -264,7 +287,26 @@ class Gif:
         full.paste(sample, (0, 0))
         full.paste(sw, (0, sample.height))
         pal = full.quantize(colors=255, method=Image.Quantize.MEDIANCUT)
-        q = [im.quantize(palette=pal, dither=Image.Dither.NONE) for im in rgb]
+        # Ordered (Bayer) dither: smooths the blurred backdrop's gradients without banding, and
+        # since each pixel's dither depends only on its colour and position, an unchanged pixel
+        # quantizes the same in every frame (no shimmer, small frame deltas, no ghosting from
+        # error diffusion). The amplitude is small enough to leave text edges crisp.
+        n = 8
+        bayer = np.zeros((n, n))
+        for i in range(n):
+            for j in range(n):
+                v, x, y, bit = 0, i, j ^ i, n // 2
+                while bit:
+                    v = (v << 2) | (((y & bit) != 0) << 1) | ((x & bit) != 0)
+                    bit >>= 1
+                bayer[i, j] = v
+        h, w = rgb[0].height, rgb[0].width
+        thr = (bayer / (n * n) - 0.5 + 0.5 / (n * n)) * 7
+        thr = np.tile(thr, (h // n + 1, w // n + 1))[:h, :w, None]
+        q = []
+        for im in rgb:
+            a = np.clip(np.asarray(im, dtype=np.float32) + thr, 0, 255).astype(np.uint8)
+            q.append(Image.fromarray(a, "RGB").quantize(palette=pal, dither=Image.Dither.NONE))
         q[0].save(path, save_all=True, append_images=q[1:], duration=[ms for _, ms in self.frames],
                   loop=0, optimize=False, disposal=1)
 
@@ -285,34 +327,35 @@ def caption_maker(title, sub, frames=None, current=None):
     style's frames from animate.lua with the one the next message uses lit up."""
     def draw(img):
         d = ImageDraw.Draw(img)
-        plate(d, (16, 10, 744, 50))
-        fb = ImageFont.truetype(AGAVE_BOLD, 15)
-        fs = ImageFont.truetype(AGAVE, 11)
-        d.text((30, 13), title, font=fb, fill=PLATE_TEXT + (255,))
-        d.text((30, 32), sub, font=fs, fill=PLATE_TEXT_SOFT + (255,))
-        left_end = 30 + max(fb.getlength(title), fs.getlength(sub)) + 20
+        plate(d, (16 * S, 10 * S, 744 * S, 50 * S))
+        fb = agave(15, bold=True)
+        fs = agave(11)
+        d.text((30 * S, 13 * S), title, font=fb, fill=PLATE_TEXT + (255,))
+        d.text((30 * S, 32 * S), sub, font=fs, fill=PLATE_TEXT_SOFT + (255,))
+        left_end = 30 * S + max(fb.getlength(title), fs.getlength(sub)) + 20 * S
+        right = (744 - 12) * S
         if frames:
-            ff = ImageFont.truetype(AGAVE_BOLD, 13)
+            ff = agave(13, bold=True)
             n = len(frames)
             while True:
                 shown = frames[:n]
-                widths = [ff.getlength(t) + 14 for t in shown]
+                widths = [ff.getlength(t) + 14 * S for t in shown]
                 more = len(frames) > n
-                total = sum(widths) + 4 * (n - 1) + (24 if more else 0)
-                if 744 - 12 - total >= left_end or n <= 3:
+                total = sum(widths) + 4 * S * (n - 1) + (24 * S if more else 0)
+                if right - total >= left_end or n <= 3:
                     break
                 n -= 1
-            x = 744 - 12 - total
+            x = right - total
             for i, t in enumerate(shown):
                 w = widths[i]
                 if i == current:
-                    d.rounded_rectangle((x, 19, x + w, 41), radius=4, fill=ACCENT + (255,))
-                    d.text((x + 7, 22), t, font=ff, fill=INK + (255,))
+                    d.rounded_rectangle((x, 19 * S, x + w, 41 * S), radius=4 * S, fill=ACCENT + (255,))
+                    d.text((x + 7 * S, 22 * S), t, font=ff, fill=INK + (255,))
                 else:
-                    d.text((x + 7, 22), t, font=ff, fill=PLATE_TEXT_SOFT + (255,))
-                x += w + 4
+                    d.text((x + 7 * S, 22 * S), t, font=ff, fill=PLATE_TEXT_SOFT + (255,))
+                x += w + 4 * S
             if more:
-                d.text((x + 4, 22), "...", font=ff, fill=PLATE_TEXT_SOFT + (255,))
+                d.text((x + 4 * S, 22 * S), "...", font=ff, fill=PLATE_TEXT_SOFT + (255,))
     return draw
 
 
@@ -325,7 +368,7 @@ def make_tag_anim(data):
     ]
     scenery = {  # replies from other players (not from the add-on), after message n of a style
         ("brackets", 0): chat_line_runs("GUILD", "Thandrel", "me! what key?"),
-        ("typewriter", 0): chat_line_runs("GUILD", "Brightwing", "wb Misa"),
+        ("typewriter", 0): chat_line_runs("GUILD", "Brightwing", "wb Tuni"),
         ("twinkle", 0): chat_line_runs("WHISPER", "Thandrel", "here, sent you one"),
     }
     gif = Gif()
@@ -369,12 +412,12 @@ def make_phrases(data):
     def keys_fn(label, pressed, note=None):
         def draw(img, ey):
             # the keys, on the right of the caption plate (Ctrl-1 is an example binding)
-            y = 15
-            x = keycap(img, 548, y, "Ctrl", pressed and label == "CTRL-1")
-            ImageDraw.Draw(img).text((x + 5, y + 5), "+", font=ImageFont.truetype(AGAVE_BOLD, 13),
+            y = 15 * S
+            x = keycap(img, 548 * S, y, "Ctrl", pressed and label == "CTRL-1")
+            ImageDraw.Draw(img).text((x + 5 * S, y + 5 * S), "+", font=agave(13, bold=True),
                                      fill=PLATE_TEXT + (255,))
-            x = keycap(img, x + 18, y, "1", pressed and label == "CTRL-1")
-            keycap(img, x + 22, y, "Enter", pressed and label == "ENTER")
+            x = keycap(img, x + 18 * S, y, "1", pressed and label == "CTRL-1")
+            keycap(img, x + 22 * S, y, "Enter", pressed and label == "ENTER")
         return draw
 
     gif = Gif()
@@ -402,28 +445,25 @@ def badge_runs(alt, msg):
 def make_badges_png(data):
     alt = data["alt"]
     badges = data["badges"]
-    f = chat_font()
     cols = 2
-    pad = 14
+    pad = 14 * S
     card_w = 0
     for b in badges:
         for ln in b["lines"]:
-            w = 0
-            for t, _ in badge_runs(alt, ln["msg"]):
-                w += f.getlength(unescape(t))
-            card_w = max(card_w, int(w) + 2 * 12)
-    card_w = max(card_w, 330)
+            w = sum(text_width(t) for t, _ in badge_runs(alt, ln["msg"]))
+            card_w = max(card_w, int(w) + 2 * 12 * S)
+    card_w = max(card_w, 330 * S)
     rows = (len(badges) + cols - 1) // cols
     row_h = []
     for r in range(rows):
         n = max(len(b["lines"]) for b in badges[r * cols:(r + 1) * cols])
-        row_h.append(34 + 14 + n * LINE_H + 12)
+        row_h.append((34 + 14 + 12) * S + n * LINE_H)
     W = cols * card_w + (cols + 1) * pad
     H = sum(row_h) + (rows + 1) * pad
     img = backdrop(W, H, seed=3).convert("RGBA")
     d = ImageDraw.Draw(img)
-    fb = ImageFont.truetype(AGAVE_BOLD, 14)
-    fs = ImageFont.truetype(AGAVE, 12)
+    fb = agave(14, bold=True)
+    fs = agave(12)
     y = pad
     for r in range(rows):
         for c in range(cols):
@@ -432,15 +472,16 @@ def make_badges_png(data):
                 break
             b = badges[i]
             x = pad + c * (card_w + pad)
-            plate(d, (x, y, x + card_w, y + 28), radius=5)
-            d.text((x + 12, y + 5), f"{b['index']}. {b['name']}", font=fb, fill=PLATE_TEXT + (255,))
+            plate(d, (x, y, x + card_w, y + 28 * S), radius=5 * S)
+            d.text((x + 12 * S, y + 5 * S), f"{b['index']}. {b['name']}", font=fb, fill=PLATE_TEXT + (255,))
             note = f"{len(b['lines'])} line{'s' if len(b['lines']) != 1 else ''}"
-            d.text((x + card_w - 12 - fs.getlength(note), y + 8), note, font=fs, fill=PLATE_TEXT_SOFT + (255,))
-            top = y + 34
+            d.text((x + card_w - 12 * S - fs.getlength(note), y + 8 * S), note, font=fs,
+                   fill=PLATE_TEXT_SOFT + (255,))
+            top = y + 34 * S
             shade(img, (x, top, x + card_w, y + row_h[r]), alpha=0.5)
-            ly = top + 8
+            ly = top + 8 * S
             for ln in b["lines"]:
-                text_runs(d, x + 10, ly, badge_runs(alt, ln["msg"]))
+                text_runs(d, x + 10 * S, ly, badge_runs(alt, ln["msg"]))
                 ly += LINE_H
         y += row_h[r] + pad
     img.convert("RGB").save(os.path.join(OUT, "badges.png"), optimize=True)
