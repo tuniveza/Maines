@@ -612,16 +612,48 @@ end
 
 -- The palette whose surfaces are showing (nil = the start look's grain and brushed brass).
 local Maines_ActivePalette
+-- The frame, plate and restore helpers below live in this one table (the main chunk is close
+-- to Lua's 200-locals limit).
+local Maines_Look = {}
 
--- `label` is the palette's name; it also picks the palette's surface textures (an unknown or
--- missing label puts the start look's grain and brushed overlays back).
-local function Maines_ApplyPaletteColor(r, g, b, hex, label)
+-- Text contrast the way WCAG measures it (sRGB-linear luminance). Maines_ToneLike keeps the
+-- simple brightness of a surface, but a saturated red at that brightness still reads a little
+-- lighter to the eye; HoldContrast then darkens a dark plate (toward black) or lightens a light
+-- band (toward white) just enough that its contrast with the fixed text is never below the
+-- start look's.
+local function Maines_LinLum(c)
+    local function lin(x) return x <= 0.03928 and x / 12.92 or ((x + 0.055) / 1.055) ^ 2.4 end
+    return 0.2126 * lin(c[1]) + 0.7152 * lin(c[2]) + 0.0722 * lin(c[3])
+end
+function Maines_Look.HoldContrast(c, base, dark)
+    local want, have = Maines_LinLum(base), Maines_LinLum(c)
+    if (dark and have <= want) or (not dark and have >= want) then return c end
+    local target = dark and 0 or 1
+    local lo, hi = 0, 1
+    for _ = 1, 16 do
+        local t = (lo + hi) / 2
+        local m = {c[1] + (target - c[1]) * t, c[2] + (target - c[2]) * t, c[3] + (target - c[3]) * t}
+        local l = Maines_LinLum(m)
+        if (dark and l > want) or (not dark and l < want) then lo = t else hi = t end
+    end
+    return {c[1] + (target - c[1]) * hi, c[2] + (target - c[2]) * hi, c[3] + (target - c[3]) * hi}
+end
+
+-- `label` is the palette's name; it also picks the palette's surface textures and window frame
+-- (an unknown or missing label puts the start look's grain, brushed brass and brass frame back).
+-- The choice is remembered in Maines_DB.palette, so it comes back after /reload (see the
+-- ADDON_LOADED watcher at the end of this file); `quiet` skips the chat line (used for that).
+local function Maines_ApplyPaletteColor(r, g, b, hex, label, quiet)
     ACCENT[1], ACCENT[2], ACCENT[3] = r, g, b
     local palette = label and Palette_ByName[label]
     Maines_ActivePalette = palette
     local surfaceKey = palette and palette.surface
+    Maines_DB = Maines_DB or {}
+    Maines_DB.palette = palette and {name = palette.name, hex = hex, r = r, g = g, b = b} or nil
     for _, entry in ipairs(Maines_Textures) do
-        if entry.surface then
+        if entry.frameBorder then
+            entry.frameBorder(surfaceKey)
+        elseif entry.surface then
             local tex = entry.surface
             tex:SetTexture(Maines_SurfacePath(surfaceKey, entry.role), "REPEAT", "REPEAT")
             tex:SetHorizTile(true)
@@ -646,9 +678,31 @@ local function Maines_ApplyPaletteColor(r, g, b, hex, label)
             entry.repaint(r, g, b)
         end
     end
-    if hex and label then
+    if hex and label and not quiet then
         print(("|cFF00FF00Maines|r: painted #%s from \"%s\""):format(hex, label))
     end
+end
+
+-- Puts a palette remembered in Maines_DB.palette back, silently. Anything unusable (a palette
+-- removed or renamed since, a damaged entry) falls back to the start look and is forgotten.
+function Maines_Look.RestorePalette()
+    local saved = Maines_DB and Maines_DB.palette
+    if type(saved) ~= "table" then
+        if Maines_DB then Maines_DB.palette = nil end
+        return false
+    end
+    local palette = type(saved.name) == "string" and Palette_ByName[saved.name]
+    local r, g, b = tonumber(saved.r), tonumber(saved.g), tonumber(saved.b)
+    if palette and not (r and g and b) and type(saved.hex) == "string" and saved.hex:match("^%x%x%x%x%x%x$") then
+        r, g, b = Maines_HexToRGB(saved.hex)
+    end
+    if not (palette and r and g and b) then
+        Maines_DB.palette = nil
+        return false
+    end
+    r, g, b = math.min(1, math.max(0, r)), math.min(1, math.max(0, g)), math.min(1, math.max(0, b))
+    Maines_ApplyPaletteColor(r, g, b, saved.hex, palette.name, true)
+    return true
 end
 
 -- Every panel in this UI - the window itself, the content area, the small plates - is built
@@ -695,6 +749,112 @@ local function Maines_MakeFlatBackdrop(frame, bg, border, edgeSize)
     Maines_RegisterBackdropTrim(frame)
     Maines_DressSurface(frame, edgeSize or 2)
     return frame
+end
+
+-- A window's frame: a carved / forged border drawn just outside the window, one style per
+-- palette (textures/frames/<key>/ from tools/make_textures.py; "brass" is the start look's
+-- riveted brass). Built the way Blizzard's dialog borders are - four corner pieces and four
+-- edge strips - but from the add-on's own textures: FRAME_SIZE units thick, FRAME_OUT of it
+-- outside the window, so the rest only covers the window's own thin edge, never its content.
+-- The strips repeat every FRAME_TILE units through texture coordinates past 1 (wrap mode
+-- REPEAT), rounded to a whole number of repeats so the pattern meets each corner cleanly.
+do
+    local FRAMES = TEXTURES .. "frames\\"
+    local FRAME_SIZE, FRAME_OUT, FRAME_TILE = 16, 13, 64
+    local FRAME_PIECES = {"tl", "tr", "bl", "br", "top", "bottom", "left", "right"}
+    local function Maines_FramePath(key, piece)
+        return FRAMES .. (key or "brass") .. "\\" .. piece .. ".tga"
+    end
+
+    function Maines_Look.AddFrameBorder(frame)
+        local p = {}
+        for _, name in ipairs(FRAME_PIECES) do
+            p[name] = frame:CreateTexture(nil, "OVERLAY", nil, 7)
+        end
+        for _, name in ipairs({"tl", "tr", "bl", "br"}) do p[name]:SetSize(FRAME_SIZE, FRAME_SIZE) end
+        p.tl:SetPoint("TOPLEFT", frame, "TOPLEFT", -FRAME_OUT, FRAME_OUT)
+        p.tr:SetPoint("TOPRIGHT", frame, "TOPRIGHT", FRAME_OUT, FRAME_OUT)
+        p.bl:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", -FRAME_OUT, -FRAME_OUT)
+        p.br:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", FRAME_OUT, -FRAME_OUT)
+        p.top:SetPoint("TOPLEFT", p.tl, "TOPRIGHT"); p.top:SetPoint("BOTTOMRIGHT", p.tr, "BOTTOMLEFT")
+        p.bottom:SetPoint("TOPLEFT", p.bl, "TOPRIGHT"); p.bottom:SetPoint("BOTTOMRIGHT", p.br, "BOTTOMLEFT")
+        p.left:SetPoint("TOPLEFT", p.tl, "BOTTOMLEFT"); p.left:SetPoint("BOTTOMRIGHT", p.bl, "TOPRIGHT")
+        p.right:SetPoint("TOPLEFT", p.tr, "BOTTOMLEFT"); p.right:SetPoint("BOTTOMRIGHT", p.br, "TOPRIGHT")
+
+        -- (each direction on its own: the note's height is only known once its text is laid out)
+        local function fit()
+            local w, h = frame:GetWidth(), frame:GetHeight()
+            if w and w > 0 then
+                local across = math.max(1, math.floor((w + 2 * FRAME_OUT - 2 * FRAME_SIZE) / FRAME_TILE + 0.5))
+                p.top:SetTexCoord(0, across, 0, 1)
+                p.bottom:SetTexCoord(0, across, 0, 1)
+            end
+            if h and h > 0 then
+                local down = math.max(1, math.floor((h + 2 * FRAME_OUT - 2 * FRAME_SIZE) / FRAME_TILE + 0.5))
+                p.left:SetTexCoord(0, 1, 0, down)
+                p.right:SetTexCoord(0, 1, 0, down)
+            end
+        end
+        p.fit = fit
+        -- nil = the start look's brass frame
+        local function dress(key)
+            for _, name in ipairs(FRAME_PIECES) do
+                p[name]:SetTexture(Maines_FramePath(key, name), "REPEAT", "REPEAT")
+            end
+            p.key = key or "brass"
+            fit()
+        end
+        dress(nil)
+        frame:HookScript("OnSizeChanged", fit)
+        frame:HookScript("OnShow", fit)
+        -- keep the whole frame, not just the window, on screen
+        if frame.SetClampRectInsets then frame:SetClampRectInsets(-FRAME_OUT, FRAME_OUT, FRAME_OUT, -FRAME_OUT) end
+        frame.maines_frame = p
+        table.insert(Maines_Textures, {frameBorder = dress})
+        return p
+    end
+
+    -- A dark walnut plate (tab strip, footer, preview stages): /maincolor tones it toward the
+    -- palette color, but - like the title bands - every tone keeps the walnut's own brightness
+    -- (Maines_ToneLike), so the cream text on it stays exactly as readable. `paint(lo, hi)` gets the
+    -- toned colors of the plate's two shades; plate.tone holds them for the tests. HoldContrast
+-- then makes sure none of them is any lighter, to the eye, than the walnut it replaces.
+    local PLATE_BLEND = 0.6
+    function Maines_Look.RegisterPlate(plate, shades, paint)
+        local function repaint(r, g, b)
+            local out = {}
+            for i, base in ipairs(shades) do
+                if r then
+                    out[i] = Maines_Look.HoldContrast({Maines_ToneLike(base, r, g, b, PLATE_BLEND)}, base, true)
+                else
+                    out[i] = {base[1], base[2], base[3]}
+                end
+            end
+            plate.tone = out
+            paint(unpack(out))
+        end
+        repaint()
+        table.insert(Maines_Textures, {repaint = repaint})
+    end
+
+    -- A plate drawn as a gradient texture, between `lo` and `hi` times the walnut.
+    function Maines_Look.TonePlateGradient(plate, tex, lo, hi)
+        Maines_Look.RegisterPlate(plate, {
+            {PLATE_BG[1] * lo, PLATE_BG[2] * lo, PLATE_BG[3] * lo},
+            {PLATE_BG[1] * hi, PLATE_BG[2] * hi, PLATE_BG[3] * hi},
+        }, function(a, b)
+            tex:SetGradient("VERTICAL", CreateColor(a[1], a[2], a[3], 1), CreateColor(b[1], b[2], b[3], 1))
+        end)
+    end
+
+    -- A plate drawn as a backdrop (fill PLATE_BG, edge BORDER_DARK), for the feature pages.
+    function Maines_Look.TonePlateBackdrop(frame)
+        Maines_Look.RegisterPlate(frame, {PLATE_BG, BORDER_DARK}, function(fill, edge)
+            frame:SetBackdropColor(fill[1], fill[2], fill[3], 1)
+            frame:SetBackdropBorderColor(edge[1], edge[2], edge[3], 1)
+        end)
+    end
+    Maines_Look.FRAME_OUT = FRAME_OUT
 end
 
 -- The GLYPH stamp mark: a small engraved diamond - an accent-colored diamond with a dark one
@@ -1531,6 +1691,7 @@ Help_Frame:SetScript("OnKeyDown", function(self, key)
 end)
 Help_Frame:Hide()
 Maines_MakeFlatBackdrop(Help_Frame, WINDOW_BG, BORDER_DARK, 3)
+Maines_Look.AddFrameBorder(Help_Frame)
 
 Help_Frame.title = Help_Frame:CreateFontString(nil, "OVERLAY")
 Help_Frame.title:SetFontObject(Maines_Font_Display)
@@ -1757,10 +1918,12 @@ windowFadeIn:SetSmoothing("OUT")
 Maines_Window:HookScript("OnShow", function() windowFade:Play() end)
 
 -- A soft outer glow around the window: one round falloff texture (textures/glow.tga) cut into
--- four corners and four stretched edges just outside the frame. Kept faint on purpose, and it
+-- four corners and four stretched edges round the window, `out` units out (tucked a little under
+-- the frame border, so its rounded corners sit on glow too). Kept faint on purpose, and it
 -- takes on the /maincolor accent.
-local function Maines_AddOuterGlow(frame, size, alpha)
+local function Maines_AddOuterGlow(frame, size, alpha, out)
     local parts = {}
+    local o = out or 0
     local function piece(l, r, t, b)
         local tex = frame:CreateTexture(nil, "BACKGROUND", nil, -8)
         tex:SetTexture(GLOW_TEXTURE)
@@ -1770,18 +1933,18 @@ local function Maines_AddOuterGlow(frame, size, alpha)
         parts[#parts + 1] = tex
         return tex
     end
-    local tl = piece(0, 0.5, 0, 0.5); tl:SetSize(size, size); tl:SetPoint("BOTTOMRIGHT", frame, "TOPLEFT")
-    local tr = piece(0.5, 1, 0, 0.5); tr:SetSize(size, size); tr:SetPoint("BOTTOMLEFT", frame, "TOPRIGHT")
-    local bl = piece(0, 0.5, 0.5, 1); bl:SetSize(size, size); bl:SetPoint("TOPRIGHT", frame, "BOTTOMLEFT")
-    local br = piece(0.5, 1, 0.5, 1); br:SetSize(size, size); br:SetPoint("TOPLEFT", frame, "BOTTOMRIGHT")
+    local tl = piece(0, 0.5, 0, 0.5); tl:SetSize(size, size); tl:SetPoint("BOTTOMRIGHT", frame, "TOPLEFT", -o, o)
+    local tr = piece(0.5, 1, 0, 0.5); tr:SetSize(size, size); tr:SetPoint("BOTTOMLEFT", frame, "TOPRIGHT", o, o)
+    local bl = piece(0, 0.5, 0.5, 1); bl:SetSize(size, size); bl:SetPoint("TOPRIGHT", frame, "BOTTOMLEFT", -o, -o)
+    local br = piece(0.5, 1, 0.5, 1); br:SetSize(size, size); br:SetPoint("TOPLEFT", frame, "BOTTOMRIGHT", o, -o)
     local top = piece(0.49, 0.51, 0, 0.5); top:SetHeight(size)
-    top:SetPoint("BOTTOMLEFT", frame, "TOPLEFT"); top:SetPoint("BOTTOMRIGHT", frame, "TOPRIGHT")
+    top:SetPoint("BOTTOMLEFT", frame, "TOPLEFT", -o, o); top:SetPoint("BOTTOMRIGHT", frame, "TOPRIGHT", o, o)
     local bottom = piece(0.49, 0.51, 0.5, 1); bottom:SetHeight(size)
-    bottom:SetPoint("TOPLEFT", frame, "BOTTOMLEFT"); bottom:SetPoint("TOPRIGHT", frame, "BOTTOMRIGHT")
+    bottom:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", -o, -o); bottom:SetPoint("TOPRIGHT", frame, "BOTTOMRIGHT", o, -o)
     local left = piece(0, 0.5, 0.49, 0.51); left:SetWidth(size)
-    left:SetPoint("TOPRIGHT", frame, "TOPLEFT"); left:SetPoint("BOTTOMRIGHT", frame, "BOTTOMLEFT")
+    left:SetPoint("TOPRIGHT", frame, "TOPLEFT", -o, o); left:SetPoint("BOTTOMRIGHT", frame, "BOTTOMLEFT", -o, -o)
     local right = piece(0.5, 1, 0.49, 0.51); right:SetWidth(size)
-    right:SetPoint("TOPLEFT", frame, "TOPRIGHT"); right:SetPoint("BOTTOMLEFT", frame, "BOTTOMRIGHT")
+    right:SetPoint("TOPLEFT", frame, "TOPRIGHT", o, o); right:SetPoint("BOTTOMLEFT", frame, "BOTTOMRIGHT", o, -o)
     local function paint(r, g, b)
         r, g, b = r or 1, g or 0.78, b or 0.42
         for _, tex in ipairs(parts) do tex:SetVertexColor(r, g, b) end
@@ -1789,7 +1952,8 @@ local function Maines_AddOuterGlow(frame, size, alpha)
     paint()
     table.insert(Maines_Textures, {repaint = paint})
 end
-Maines_AddOuterGlow(Maines_Window, 22, 0.35)
+Maines_Look.AddFrameBorder(Maines_Window)
+Maines_AddOuterGlow(Maines_Window, 22, 0.35, Maines_Look.FRAME_OUT - 5)
 
 -- Dresses a band (the window header, the note's title strip) as brushed brass: a warm gradient,
 -- tiled brushed-metal streaks and paper grain, darker toward both ends, a fine highlight along
@@ -1838,8 +2002,8 @@ local function Maines_DressBrassBand(band)
     local function paint(r, g, b)
         local lr, lg, lb, hr, hg, hb, sr, sg, sb
         if r then
-            lr, lg, lb = Maines_ToneLike(BAND_LOW, r, g, b, BAND_BLEND)
-            hr, hg, hb = Maines_ToneLike(BAND_HIGH, r, g, b, BAND_BLEND)
+            lr, lg, lb = unpack(Maines_Look.HoldContrast({Maines_ToneLike(BAND_LOW, r, g, b, BAND_BLEND)}, BAND_LOW, false))
+            hr, hg, hb = unpack(Maines_Look.HoldContrast({Maines_ToneLike(BAND_HIGH, r, g, b, BAND_BLEND)}, BAND_HIGH, false))
             sr, sg, sb = Maines_ToneLike(BAND_SHADE, r * 0.3, g * 0.3, b * 0.3, BAND_BLEND)
         else
             lr, lg, lb = BAND_LOW[1], BAND_LOW[2], BAND_LOW[3]
@@ -1962,8 +2126,7 @@ tabBar:SetHeight(TAB_BAR_HEIGHT)
 local tabBarBg = tabBar:CreateTexture(nil, "BACKGROUND")
 tabBarBg:SetAllPoints()
 tabBarBg:SetTexture("Interface\\Buttons\\WHITE8X8")
-tabBarBg:SetGradient("VERTICAL", CreateColor(PLATE_BG[1] * 0.8, PLATE_BG[2] * 0.8, PLATE_BG[3] * 0.8, 1),
-    CreateColor(PLATE_BG[1] * 1.2, PLATE_BG[2] * 1.2, PLATE_BG[3] * 1.2, 1))
+Maines_Look.TonePlateGradient(tabBar, tabBarBg, 0.8, 1.2)
 
 local contentFrame = CreateFrame("Frame", nil, Maines_Window, "BackdropTemplate")
 contentFrame:SetPoint("TOPLEFT", tabBar, "BOTTOMLEFT", 0, 0)
@@ -2006,11 +2169,10 @@ footerBar:SetHeight(FOOTER_HEIGHT - 3)
 local footerBg = footerBar:CreateTexture(nil, "BACKGROUND")
 footerBg:SetAllPoints()
 footerBg:SetTexture("Interface\\Buttons\\WHITE8X8")
-footerBg:SetGradient("VERTICAL", CreateColor(PLATE_BG[1] * 0.75, PLATE_BG[2] * 0.75, PLATE_BG[3] * 0.75, 1),
-    CreateColor(PLATE_BG[1] * 1.15, PLATE_BG[2] * 1.15, PLATE_BG[3] * 1.15, 1))
 local footerRule = footerBar:CreateTexture(nil, "ARTWORK")
 footerRule:SetTexture("Interface\\Buttons\\WHITE8X8")
-footerRule:SetVertexColor(BORDER_DARK[1], BORDER_DARK[2], BORDER_DARK[3])
+Maines_Look.TonePlateGradient(footerBar, footerBg, 0.75, 1.15)
+Maines_Look.RegisterPlate(footerRule, {BORDER_DARK}, function(c) footerRule:SetVertexColor(c[1], c[2], c[3]) end)
 footerRule:SetHeight(1)
 footerRule:SetPoint("TOPLEFT")
 footerRule:SetPoint("TOPRIGHT")
@@ -2045,6 +2207,8 @@ ns.RegisterTexture = Maines_RegisterTexture
 ns.Palettes = Color_Palettes
 ns.ApplyPaletteColor = Maines_ApplyPaletteColor
 ns.ActivePalette = function() return Maines_ActivePalette end
+ns.TonePlateBackdrop = Maines_Look.TonePlateBackdrop
+ns.TabBar, ns.FooterBar = tabBar, footerBar
 ns.Fonts = {
     Title = Maines_Font_Title, Header = Maines_Font_Header, Body = Maines_Font_Body,
     BodySmall = Maines_Font_BodySmall, Button = Maines_Font_Button,
@@ -2549,7 +2713,8 @@ Note_Frame:SetScript("OnDragStart", Note_Frame.StartMoving)
 Note_Frame:SetScript("OnDragStop", Note_Frame.StopMovingOrSizing)
 Note_Frame:Hide()
 Maines_MakeFlatBackdrop(Note_Frame, CONTENT_BG, BORDER_DARK, 3)
-Maines_AddOuterGlow(Note_Frame, 22, 0.35)
+Maines_Look.AddFrameBorder(Note_Frame)
+Maines_AddOuterGlow(Note_Frame, 22, 0.35, Maines_Look.FRAME_OUT - 5)
 -- Escape closes it, like Blizzard's own dialogs.
 if UISpecialFrames then table.insert(UISpecialFrames, "Maines_NoteFrame") end
 
@@ -2559,7 +2724,7 @@ noteFadeIn:SetFromAlpha(0)
 noteFadeIn:SetToAlpha(1)
 noteFadeIn:SetDuration(0.25)
 noteFadeIn:SetSmoothing("OUT")
-Note_Frame:SetScript("OnShow", function() noteFade:Play() end)
+Note_Frame:HookScript("OnShow", function() noteFade:Play() end) -- hooked: the frame border refits on show too
 
 local noteBand = CreateFrame("Frame", nil, Note_Frame)
 noteBand:SetPoint("TOPLEFT", 3, -3)
@@ -2639,6 +2804,7 @@ noteOk:SetPoint("TOP", 0, noteY)
 noteOk:SetScript("OnClick", function() Note_Frame:Hide() end)
 noteY = noteY - 26 - 20
 Note_Frame:SetHeight(-noteY)
+Note_Frame.maines_frame.fit()
 
 function Maines_ShowNote()
     Maines_DB = Maines_DB or {}
@@ -2659,3 +2825,16 @@ noteWatcher:SetScript("OnEvent", function()
         if not (Maines_DB and Maines_DB.noteSeen == NOTE_VERSION) then Maines_ShowNote() end
     end)
 end)
+
+-- /maincolor's choice survives /reload: once the saved variables are in (ADDON_LOADED, after
+-- every file of the add-on has built its UI), put the remembered palette back before the
+-- window is ever shown.
+do
+    local paletteWatcher = CreateFrame("Frame")
+    paletteWatcher:RegisterEvent("ADDON_LOADED")
+    paletteWatcher:SetScript("OnEvent", function(self, _, name)
+        if name ~= "Maines" then return end
+        self:UnregisterEvent("ADDON_LOADED")
+        Maines_Look.RestorePalette()
+    end)
+end

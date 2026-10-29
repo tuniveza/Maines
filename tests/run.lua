@@ -581,11 +581,28 @@ test("15. the full-colour icons are never tinted: tabs dim instead, /maincolor l
     end
 end)
 
-test("16. a palette tones the title bands and swaps every grain/brushed overlay for its own", function()
+test("16. a palette tones the title bands, tab strip, footer and plates, and swaps every overlay and window frame", function()
     local ns = mock.ns
-    slash("/maines"); slash("/mainnote")
+    slash("/maines"); slash("/mainnote"); slash("/mainhelp")
+    for _, key in ipairs({"animate", "badges"}) do ns.ShowPanel(key) end
     local base = "Interface\\AddOns\\Maines\\textures\\"
     local function lum(c) return 0.2126 * c[1] + 0.7152 * c[2] + 0.0722 * c[3] end
+    -- WCAG contrast ratio, from sRGB
+    local function lin(x) return x <= 0.03928 and x / 12.92 or ((x + 0.055) / 1.055) ^ 2.4 end
+    local function wlum(c) return 0.2126 * lin(c[1]) + 0.7152 * lin(c[2]) + 0.0722 * lin(c[3]) end
+    local function contrast(a, b)
+        local la, lb = wlum(a), wlum(b)
+        return (math.max(la, lb) + 0.05) / (math.min(la, lb) + 0.05)
+    end
+    local CREAM, CREAM_SOFT = {0.96, 0.91, 0.78}, {0.78, 0.68, 0.52}   -- PLATE_TEXT, PLATE_TEXT_SOFT
+    local windows = {Maines_Frame, Maines_NoteFrame, Maines_Help_Frame}
+    for _, w in ipairs(windows) do ok(w.maines_frame, (w:GetName() or "?") .. " has a frame border") end
+    local plates = {}
+    for _, o in ipairs(mock.objects) do
+        if type(o.tone) == "table" and o ~= ns.TabBar and o ~= ns.FooterBar and o._type ~= "Texture" then plates[#plates + 1] = o end
+    end
+    ok(#plates >= 2, "the feature pages' dark plates are toned too (" .. #plates .. ")")
+    local worst = math.huge
     -- earlier tests clicked every swatch, so first put the start look back (no palette name)
     ns.ApplyPaletteColor(0.70, 0.47, 0.18)
     local overlays, bands = {}, {}
@@ -622,21 +639,158 @@ test("16. a palette tones the title bands and swaps every grain/brushed overlay 
             ok(f, "texture on disk: " .. path)
             if f then f:close() end
         end
+        -- tab strip, footer and page plates: toned, same brightness, cream text still readable
+        for _, plate in ipairs({ns.TabBar, ns.FooterBar, unpack(plates)}) do
+            for _, tone in ipairs(plate.tone) do
+                for _, text in ipairs({CREAM, CREAM_SOFT}) do
+                    worst = math.min(worst, contrast(text, tone))
+                end
+            end
+        end
+        local walnutHi = {0.24 * 1.2, 0.16 * 1.2, 0.09 * 1.2}
+        ok(wlum(ns.TabBar.tone[2]) <= wlum(walnutHi) + 1e-9, palette.name .. ": tab strip no lighter than the walnut")
+        local moved = math.abs(ns.TabBar.tone[2][1] - walnutHi[1]) + math.abs(ns.TabBar.tone[2][3] - walnutHi[3])
+        ok(moved > 0.002, palette.name .. ": tab strip takes the palette color")
+        -- the window frames: every piece swapped to the palette's frame, strips repeating whole
+        for _, w in ipairs(windows) do
+            for piece, tex in pairs(w.maines_frame) do
+                if type(tex) == "table" then
+                    local path = base .. "frames\\" .. palette.surface .. "\\" .. piece .. ".tga"
+                    eq(tex._texture, path, palette.name .. " frame " .. piece)
+                    local f = io.open(repoRoot .. "/" .. path:gsub("^Interface\\AddOns\\Maines\\", ""):gsub("\\", "/"), "rb")
+                    ok(f, "frame texture on disk: " .. path)
+                    if f then f:close() end
+                end
+            end
+            local tc = w.maines_frame.top._set.SetTexCoord
+            ok(tc and tc[2] >= 1 and tc[2] == math.floor(tc[2]), "top strip repeats a whole number of times")
+            local lc = w.maines_frame.left._set.SetTexCoord
+            ok(lc and lc[4] >= 1 and lc[4] == math.floor(lc[4]), "side strip repeats a whole number of times")
+            -- about one repeat per 64 units, so rivets and tiles keep their shape
+            ok(math.abs((w:GetWidth() + 26 - 32) / tc[2] - 64) < 12, "top strip repeat stays near 64 units")
+            ok(math.abs((w:GetHeight() + 26 - 32) / lc[4] - 64) < 12, "side strip repeat stays near 64 units")
+        end
         for _, band in ipairs(bands) do
             local moved = math.abs(band.toneHigh[1] - brassHigh[1]) + math.abs(band.toneHigh[3] - brassHigh[3])
             ok(moved > 0.02, palette.name .. ": title band takes the palette color")
-            -- the title's ink is fixed, so an unchanged band brightness = unchanged contrast
-            ok(math.abs(lum(band.toneLow) - lum(brassLow)) < 1e-6, palette.name .. ": band low stop keeps its brightness")
-            ok(math.abs(lum(band.toneHigh) - lum(brassHigh)) < 1e-6, palette.name .. ": band high stop keeps its brightness")
+            -- the title's ink is fixed: the band may only get lighter (to the eye), never darker
+            ok(math.abs(lum(band.toneLow) - lum(brassLow)) < 0.06, palette.name .. ": band low stop keeps its brightness")
+            ok(wlum(band.toneLow) >= wlum(brassLow) - 1e-9, palette.name .. ": band low stop no darker than brass")
+            ok(wlum(band.toneHigh) >= wlum(brassHigh) - 1e-9, palette.name .. ": band high stop no darker than brass")
+            local ink = {0.20, 0.11, 0.03}
+            ok(contrast(ink, band.toneLow) >= contrast(ink, brassLow) - 1e-6, palette.name .. ": title contrast kept")
         end
     end
+    -- every swatch of every palette (not just the first): plate text and the title stay readable
+    local swatches, ink, worstTitle = 0, {0.20, 0.11, 0.03}, math.huge
+    for _, palette in ipairs(ns.Palettes) do
+        for _, hex in ipairs(palette.colors) do
+            local r, g, b = tonumber(hex:sub(1, 2), 16) / 255, tonumber(hex:sub(3, 4), 16) / 255, tonumber(hex:sub(5, 6), 16) / 255
+            ns.ApplyPaletteColor(r, g, b, hex, palette.name, true)
+            swatches = swatches + 1
+            for _, plate in ipairs({ns.TabBar, ns.FooterBar, unpack(plates)}) do
+                for _, tone in ipairs(plate.tone) do
+                    for _, text in ipairs({CREAM, CREAM_SOFT}) do worst = math.min(worst, contrast(text, tone)) end
+                end
+            end
+            for _, band in ipairs(bands) do worstTitle = math.min(worstTitle, contrast(ink, band.toneLow), contrast(ink, band.toneHigh)) end
+        end
+    end
+    ok(worstTitle >= contrast(ink, brassLow) - 1e-6, ("title ink contrast kept on every swatch (worst %.2f)"):format(worstTitle))
+    note(("(%d swatches checked; worst title contrast %.2f)"):format(swatches, worstTitle))
     -- no palette name: the start look's overlays come back
     ns.ApplyPaletteColor(0.70, 0.47, 0.18)
     for _, ov in ipairs(overlays) do
         eq(ov.tex._texture, base .. (ov.role == "metal" and "brushed.tga" or "grain.tga"), "start overlay restored")
     end
-    note("(" .. #overlays .. " overlays, " .. #ns.Palettes .. " palettes checked)")
-    Maines_NoteFrame:Hide()
+    for _, w in ipairs(windows) do eq(w.maines_frame.tl._texture, base .. "frames\\brass\\tl.tga", "start frame restored") end
+    -- the start look's weakest pair is the soft cream on the tab strip's light end, 5.6:1
+    ok(worst >= 5.5, ("cream text on every toned plate keeps the start look's contrast (worst %.2f)"):format(worst))
+    note(("(%d overlays, %d plates, 3 window frames, %d palettes checked; worst plate text contrast %.2f)"):format(
+        #overlays, #plates + 2, #ns.Palettes, worst))
+    Maines_NoteFrame:Hide(); Maines_Help_Frame:Hide()
+end)
+
+test("17. the chosen palette survives /reload; a removed palette falls back to the start look", function()
+    local ns = mock.ns
+    local function serialize(v, indent)
+        if type(v) == "table" then
+            local keys = {}
+            for k in pairs(v) do keys[#keys + 1] = k end
+            table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
+            local parts = {}
+            for _, k in ipairs(keys) do
+                local key = type(k) == "string" and ("[%q]"):format(k) or ("[" .. tostring(k) .. "]")
+                parts[#parts + 1] = indent .. "  " .. key .. " = " .. serialize(v[k], indent .. "  ") .. ","
+            end
+            return "{\n" .. table.concat(parts, "\n") .. "\n" .. indent .. "}"
+        elseif type(v) == "string" then
+            return ("%q"):format(v)
+        else
+            return tostring(v)
+        end
+    end
+    -- a /reload: a fresh client process loading the add-on with what this session saved
+    local function reload(db)
+        local path = os.tmpname()
+        local f = assert(io.open(path, "w"))
+        f:write("Maines_DB = " .. serialize(db, "") .. "\n")
+        f:close()
+        local pipe = assert(io.popen('lua5.1 "' .. repoRoot .. '/tests/reload_probe.lua" "' .. path .. '" 2>&1'))
+        local res = {}
+        for line in pipe:lines() do
+            local k, v = line:match("^(%w+)=(.*)$")
+            if k then res[k] = v end
+        end
+        pipe:close()
+        os.remove(path)
+        return res
+    end
+    local pal = ns.Palettes[1]
+    for _, p in ipairs(ns.Palettes) do if p.surface == "kiss" then pal = p end end
+    local hex = pal.colors[2]
+    local r, g, b = tonumber(hex:sub(1, 2), 16) / 255, tonumber(hex:sub(3, 4), 16) / 255, tonumber(hex:sub(5, 6), 16) / 255
+    -- picking a swatch on the Cosmetic page saves it
+    ns.ApplyPaletteColor(r, g, b, hex, pal.name)
+    eq(Maines_DB.palette and Maines_DB.palette.name, pal.name, "saved in Maines_DB.palette")
+    local expectBand
+    for _, o in ipairs(mock.objects) do
+        if type(o.toneHigh) == "table" and not expectBand then expectBand = o.toneHigh end
+    end
+    local expectTab = ns.TabBar.tone[2]
+    local res = reload(Maines_DB)
+    eq(res.errors, "0", "no errors after reload")
+    eq(res.shown, "false", "restored before the window is first shown")
+    eq(res.palette, pal.name, "palette back")
+    eq(res.accent, ("%.4f,%.4f,%.4f"):format(r, g, b), "exact colour back")
+    eq(res.band, ("%.4f,%.4f,%.4f"):format(expectBand[1], expectBand[2], expectBand[3]), "title band tone back")
+    eq(res.tabbar, ("%.4f,%.4f,%.4f"):format(expectTab[1], expectTab[2], expectTab[3]), "tab strip tone back")
+    eq(res.frame, "Interface\\AddOns\\Maines\\textures\\frames\\kiss\\tl.tga", "window frame back")
+    eq(res.notefr, "Interface\\AddOns\\Maines\\textures\\frames\\kiss\\top.tga", "note frame back")
+    eq(res.grain, "Interface\\AddOns\\Maines\\textures\\palettes\\kiss.tga", "surface textures back")
+    eq(res.chatline, nil, "restored silently (no chat line on login)")
+
+    -- /maincolor (the Random Palette button and the minimap right-click run it) saves too
+    math.randomseed(5)
+    slash("/maincolor")
+    local rolled = ns.ActivePalette()
+    ok(rolled, "/maincolor picked a palette")
+    eq(Maines_DB.palette and Maines_DB.palette.name, rolled.name, "/maincolor roll saved")
+    eq(reload(Maines_DB).palette, rolled.name, "rolled palette back after reload")
+
+    -- a palette removed in a later version, or a damaged entry: start look, entry dropped
+    for _, bad in ipairs({ {name = "A Palette That Was Removed", r = 0.5, g = 0.2, b = 0.1}, {name = pal.name, r = "x"}, "junk" }) do
+        local res2 = reload({palette = bad})
+        eq(res2.errors, "0", "no errors with a bad saved palette")
+        eq(res2.palette, "nil", "falls back to the start look")
+        eq(res2.frame, "Interface\\AddOns\\Maines\\textures\\frames\\brass\\tl.tga", "brass frame")
+        eq(res2.grain, "Interface\\AddOns\\Maines\\textures\\grain.tga", "original grain")
+        eq(res2.saved, "nil", "bad entry forgotten")
+    end
+    -- the start look itself: nothing saved, nothing applied
+    ns.ApplyPaletteColor(0.70, 0.47, 0.18)
+    eq(Maines_DB.palette, nil, "start look saves no palette")
+    eq(reload(Maines_DB).palette, "nil", "start look after reload")
 end)
 
 -- ---------------------------------------------------------------- summary

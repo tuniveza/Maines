@@ -226,6 +226,7 @@ stage:SetSize(W, 54)
 stage:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1})
 stage:SetBackdropColor(C.PLATE_BG[1], C.PLATE_BG[2], C.PLATE_BG[3], 1)
 stage:SetBackdropBorderColor(C.BORDER_DARK[1], C.BORDER_DARK[2], C.BORDER_DARK[3], 1)
+ns.TonePlateBackdrop(stage) -- follows /maincolor, keeping the walnut's brightness
 local stageShade = stage:CreateTexture(nil, "BACKGROUND", nil, 2)
 stageShade:SetPoint("TOPLEFT", 1, -1)
 stageShade:SetPoint("BOTTOMRIGHT", -1, 1)
