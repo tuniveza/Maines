@@ -106,7 +106,8 @@ local function SetStyle(key)
     local db = DB()
     db.style = key
     db.step = 0
-    ns.Say(PREFIX .. "tag animation: |cFFFFE4B5" .. STYLE_BY_KEY[key].label .. "|r")
+    ns.Say(PREFIX .. "tag animation: |cFFFFE4B5" .. STYLE_BY_KEY[key].label .. "|r",
+        {kind = "ok", parts = {{label = "Tag animation", value = STYLE_BY_KEY[key].label}}})
 end
 
 local function SetTrigger(trigger, seconds)
