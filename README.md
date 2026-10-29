@@ -1,299 +1,223 @@
-<h1 align="center">Maines</h1>
-<p align="center"><em>Take your main name to the chat frame, then gtfo.</em></p>
+<p align="center">
+  <img src="docs/media/banner.png" width="100%" alt="Maines — take your main name to the chat frame, then gtfo.">
+</p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/stamp-GLYPH-8B5E3C" alt="Current stamp: GLYPH">
-  <img src="https://img.shields.io/badge/interface-12.1.0%20(Midnight)-3E6E96" alt="WoW Interface 12.1.0 (Midnight)">
+  <a href="https://github.com/tuniveza/Maines/releases/latest"><img src="https://img.shields.io/badge/stamp-GLYPH-8B5E3C" alt="Current stamp: GLYPH"></a>
+  <img src="https://img.shields.io/badge/WoW-12.1.5%20(Midnight)-3E6E96" alt="WoW 12.1.5 (Midnight)">
+  <a href="https://www.curseforge.com/projects/1721025"><img src="https://img.shields.io/badge/CurseForge-Maines-F16436" alt="Maines on CurseForge"></a>
   <img src="https://img.shields.io/badge/built%20on-Ace3-C9A227" alt="Built on Ace3">
 </p>
 
-Maines tags your outgoing chat messages with your "main" character's name wrapped in a bracket
-style of your choice, so guildies/friends know who's really talking even when you're on an alt.
+<p align="center"><em>
+You logged in on your bank alt to sell three stacks of linen.<br>
+Guild chat says <q>who is this?</q> for the fourth time this week.<br>
+Never again.
+</em></p>
 
-Compatible with modern retail WoW (Interface 12.1.0 — *Midnight*). Chat tagging was broken by
-Midnight's rearchitecture of outgoing chat and has been fixed — see **Status** below.
+---
 
-## Screenshots — current GUI (placeholder, pre-art)
+**Maines** pins your main's name to the front of everything you say, so your guild, your friends and
+your raid always know who is really talking, whichever alt you are wearing today.
 
-> **Work in progress.** This is the functional skeleton, not the finished look. Every panel and
-> button here is a plain solid color — no hand-painted art yet. See the "Opening the UI —
-> `/maines`" section further down for what's actually still to come.
+```
+[Guild] [Linenseller]: [Misamu] anyone up for a key?
+```
+
+Set it once. Chat as normal. Get on with your evening.
+
+<p align="center">
+  <img src="docs/media/tag-anim.gif" width="760" alt="A WoW-style chat frame: messages go out one by one, each tagged with the main name, and the tag changes a little with every message">
+</p>
+
+## The GLYPH stamp
+
+Every Maines release gets a name instead of a version number, stamped like a seal on a letter.
+**GLYPH** is the one where Maines learned to talk back:
+
+| | |
+|---|---|
+| ✦ **Animated tag** | Your tag shifts a little with every message: bracket cycle, typewriter, capital wave, twinkle, or your own phrases. |
+| 💬 **Saved phrases** | One key drops your next saved line into the chat box. Press again for the one after. |
+| 🛡 **Textual Badges** | Send a whole picture to chat, one line at a time. Ten come in the box; draw your own. |
+| 🔩 **A new coat of brass** | Parchment, brushed brass, soft gradients, bevelled buttons and hand-made icons. |
+
+Full notes for every stamp: [CHANGELOG.md](CHANGELOG.md).
+
+## Install
+
+**CurseForge app:** search for **Maines** and press Install.
+
+**By hand:**
+1. Download `Maines-GLYPH.zip` from the [Releases page](https://github.com/tuniveza/Maines/releases/latest).
+2. Unzip it into `World of Warcraft/_retail_/Interface/AddOns/`.
+3. You should now have a folder called `AddOns/Maines`.
+
+> Don't use the green **Code → Download ZIP** button.
+> That folder is called `Maines-main`, and WoW will ignore it.
+
+## Quick start
+
+1. Log in on any character and type `/mains Misamu [` (your main's name, then a bracket).
+2. Hop to an alt and say something.
+3. It goes out as `[Misamu] something`.
+
+On your main itself, Maines stays quiet. Nobody needs to be told who you are when you are you.
+(Change that with `/mainshow`.)
+
+Prefer buttons? Type **`/maines`** or left-click the brass **M** on your minimap.
+
+## The workshop
+
+<p align="center">
+  <img src="docs/media/window-tour.gif" width="760" alt="The Maines window: a parchment-and-brass control panel with a row of tabs, cycling through each page">
+</p>
+
+Every page of the window does exactly what the slash commands do. Use whichever you like, or mix both.
 
 <table align="center">
   <tr>
-    <td align="center">
-      <img src="docs/gui-main-tab.png" width="380" alt="Maines GUI — Main tab: name box, live-previewing bracket buttons, custom bracket fields, and a chat preview line">
-    </td>
-    <td align="center">
-      <img src="docs/gui-filter-tab.png" width="380" alt="Maines GUI — Filter tab: a checkbox per chat channel, include/exclude mode buttons, sticky toggle, and a status line">
-    </td>
+    <td align="center" width="50%"><img src="docs/media/window-main.png" alt="Main page: name box and bracket buttons that preview your tag live"><br><sub><b>Main</b> · name and brackets, previewed live</sub></td>
+    <td align="center" width="50%"><img src="docs/media/window-phrases.png" alt="Phrases page: your saved phrases and the keys that cycle them"><br><sub><b>Phrases</b> · your lines, your keys</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/media/window-animate.png" alt="Animate page: pick a tag animation style and how often it steps"><br><sub><b>Animate</b> · how your tag moves</sub></td>
+    <td align="center"><img src="docs/media/window-badges.png" alt="Badges page: pick, preview, draw and send Textual Badges"><br><sub><b>Badges</b> · pick, preview, draw, send</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/media/window-filter.png" alt="Channels page: a checkbox per chat channel"><br><sub><b>Channels</b> · where the tag goes</sub></td>
+    <td align="center"><img src="docs/media/window-cosmetic.png" alt="Cosmetic page: palettes, minimap button and music"><br><sub><b>Cosmetic</b> · paint the brass</sub></td>
   </tr>
 </table>
 
-## Installation
+<sub>Window pictures are rendered offline from the addon's real UI code (its own layout, colours, textures and font), not captured in game.</sub>
 
-Grab the `Maines-<stamp>.zip` from the **[Releases page](https://github.com/tuniveza/Maines/releases/latest)**,
-not the green "Code" button's Download ZIP — that one names the folder `Maines-main`, which
-WoW won't recognize as a valid addon folder. The Releases zip is prebuilt so it extracts to a
-folder already named `Maines`; just drag that straight into your `Interface/AddOns/` folder.
+## Saved phrases
 
-### Releasing (maintainers)
-
-Pushing a tag (the stamp name, e.g. `git tag GLYPH && git push origin GLYPH`) runs
-[BigWigsMods/packager](https://github.com/BigWigsMods/packager) via `.github/workflows/release.yml`.
-It builds the zip using `.pkgmeta` (which strips dev-only files and the Ace3 pieces Maines
-doesn't load), stamps the tag into the TOC's `## Version`, generates a changelog from commits,
-and publishes to GitHub Releases. CurseForge upload kicks in once the repo has a `CF_API_KEY`
-secret and `Maines.toc` has a `## X-Curse-Project-ID:` line. The CurseForge project page text
-lives in `docs/curseforge-description.md`.
-
-## Quick Start
-
-1. `/mains Misamu (` — sets your main name to "Misamu" with `(` `)` brackets.
-2. Send any chat message — it goes out as `(Misamu) <your message>`.
-3. `/main` any time to double check what's currently configured.
-
-That's the whole workflow. Everything below is for customizing it further.
-
-## Slash Commands
-
-### Setting your name and bracket style — `/mains`
-
-`/mains` takes your main's name plus one or two symbols for the bracket, space-separated:
-
-| Command | Result |
-|---|---|
-| `/mains Misamu (` | `(Misamu)` — recognized bracket symbol, auto-fills the matching right side |
-| `/mains Misamu *` | `*Misamu*` — unrecognized symbol, used on both sides |
-| `/mains Misamu << >>` | `<<Misamu>>` — two symbols given, used independently as left/right |
-
-Recognized bracket symbols (see `/bracket` for the full list with names): `[` `(` `<` `{` `.` `:` `-` `~` `@` `#`.
-Anything else you type (a custom symbol, or two symbols) is used as-is — you're not limited to the
-built-in list.
-
-Once set, the name/bracket persist across sessions (saved per character) until you `/mains` again.
-
-### Checking your current setup — `/main`
-
-Prints your currently saved main name, bracket type, and left/right symbols. Doesn't change anything.
-
-### Playing your main vs. an alt — `/mainhide` and `/mainshow`
-
-Maines compares your saved main name against whichever character you're actually logged into
-(case-insensitive), and behaves differently depending on the result:
-
-| Command | When you're **on your main** | When you're **on an alt** |
-|---|---|---|
-| `/mainhide` (default) | Tag is suppressed — no point tagging yourself as yourself | Tagged as normal |
-| `/mainshow` | Always tagged, even on your main | Tagged as normal |
-
-Either command prints which mode is now active. This only affects the "on your main" case —
-Maines always tags on alts regardless of this setting, since that's the whole point of the addon.
-
-### Opening the UI — `/maines`
-
-Opens the Maines window (also reachable via the minimap icon's left-click, see below). Press
-`Escape` or click the close button to dismiss it.
-
-The window is a tabbed control panel — **Main**, **Filter**, **Behavior**, **Cosmetic**, **Help**
-— that reaches every command on this page without typing any syntax: a name box and bracket
-buttons instead of `/mains <name> <bracket>`, checkboxes instead of `/mainchat`'s comma lists,
-and so on. Every widget calls straight into the same command handler described below, so the
-GUI and the text commands can never drift out of sync — pick whichever you prefer, or mix both.
-
-On the Main tab, the bracket buttons live-preview `<left><your name><right>` as you type and
-grow/reflow to fit longer names; clicking one applies it immediately, and a separate **Apply**
-button reapplies your last-picked bracket (or a custom symbol) after you edit the name, without
-needing to click the bracket again.
-
-The GUI is currently a **placeholder skeleton**: every panel and button is a solid-color
-rectangle (`Interface\Buttons\WHITE8X8`, fully opaque and fully under this addon's control —
-an earlier pass tried real Blizzard dialog/button art for more visible texture and bevel, but
-those textures rendered as transparent, and the button skin never picked up any tint at all;
-both were reverted for this reliable-but-flatter approach), brass/copper-toned buttons, and
-[Agave](https://github.com/blobject/agave) (a free/open font, SIL Open Font License 1.1,
-shipped in `fonts/agave/` and subset down to ~45KB per weight) for every piece of text. A
-handful of spinning gear/gizmo icons stand in for real gnomish/goblin-engineered artwork, which
-is the next pass. `/maincolor` reaches every button face, window/panel fills and borders, and
-the gear icons, while the actual reading text stays a fixed, deliberately high-contrast ink
-color so a palette roll can never make text unreadable. The window is an honest rectangle, not
-an octagon — a non-rectangular silhouette needs a real alpha-masked texture, which is out of
-scope for an art-free pass; an early attempt at faking the corners with diagonal accent trim
-looked bad and was removed rather than kept as a compromise. The old hand-painted art has been
-moved to `img/old/` (gitignored, kept only for reference) and nothing in the addon reads from
-it anymore.
-
-### Controlling which channels get tagged — `/mainchat`
-
-By default, Maines tags every channel it knows about (say, yell, party, raid, instance, guild,
-officer, whisper, battle.net whisper, communities, channel, emote, raid warning, and the
-leader-broadcast variants). Use `/mainchat` to narrow that down:
-
-| Command | Effect |
-|---|---|
-| `/mainchat` (no arguments) | Clears the filter — back to tagging everything |
-| `/mainchat SAY,GUILD,PARTY` | Sets the filter to these channels (comma-separated) |
-| `/mainchat list` | Print the channels currently in the filter, and the current mode |
-| `/mainchat +WHISPER` | Add a channel to the existing filter, without retyping the rest |
-| `/mainchat -WHISPER` | Remove a channel from the existing filter |
-| `/mainchat -SAY,-YELL` | `+`/`-` accept a comma-separated list too — several edits in one command |
-| `/mainchat mode include` | (default) the filter is a whitelist — tag **only** the listed channels |
-| `/mainchat mode exclude` | Flip it: tag **every** channel **except** the listed ones |
-| `/mainchat mode` | Print which mode is currently active |
-| `/mainchat sticky` | Toggle whether the filter survives a `/reload` (off by default — see below) |
-
-Case and spacing don't matter — `say, guild` and `SAY,GUILD` behave identically; everything is
-normalized before matching.
-
-You can't mix `+`/`-` edits with plain channel names in the same command (e.g. `/mainchat
-+WHISPER,PARTY` is rejected, not guessed at) — that ambiguity used to get silently resolved the
-wrong way and could wipe your filter; see **Status** below.
-
-**Filters don't persist by default.** A filter set during testing and forgotten about used to
-silently keep excluding channels forever across every future session. Now, unless you run
-`/mainchat sticky`, your filter resets to "tag everything" on your next `/reload` or login. You
-can also clear it instantly at any time — sticky or not — by **middle-clicking the minimap icon**.
-
-Valid channel names: `SAY`, `YELL`, `EMOTE`, `PARTY`, `PARTY_LEADER`, `RAID`, `RAID_LEADER`,
-`RAID_WARNING`, `INSTANCE_CHAT`, `INSTANCE_CHAT_LEADER`, `GUILD`, `OFFICER`, `WHISPER`,
-`BN_WHISPER`, `CHANNEL`, `COMMUNITIES_CHANNEL`, `VOICE_TEXT`, `AFK`, `DND`.
-
-Example: if another addon already tags your whispers and you don't want Maines doubling up there,
-run `/mainchat -WHISPER` (or, more robustly, `/mainchat mode exclude` then `/mainchat WHISPER` —
-tags everything except whispers, and automatically covers any new channel type added later).
-
-### Listing bracket styles — `/bracket`
-
-Prints every built-in bracket symbol with its name (Square, Circle, Crocodile, ButterFly, Dot,
-Double Dot, Line, Wave, Spiral, Hash Bracket) so you know what to pass to `/mains`.
-
-### Recoloring the UI — `/maincolor`
-
-Repaints every Maines UI texture (frames, buttons, minimap icon) with a random color pulled from
-a random public-domain art palette — Van Gogh's *Starry Night*, Hokusai's *Great Wave*, Klimt's
-*The Kiss*, Monet's *Water Lilies*, Munch's *The Scream*, or Mondrian's *Composition II*. Run it
-again for a different color. Requires the UI to have been opened at least once (`/maines`) so the
-textures exist to paint. You can also right-click the minimap icon to do the same thing.
+Keep the things you say every night on a key: `LF1M`, `ty for the group!`, `gz`, or a row of symbols you can never remember how to type.
 
 <p align="center">
-  <img src="docs/palette-preview.png" width="640" alt="The six /maincolor palettes: Starry Night, The Great Wave, The Kiss, Water Lilies, The Scream, and Composition II, each shown as five color swatches">
+  <img src="docs/media/phrases.gif" width="760" alt="The chat box: pressing the phrase key puts a saved phrase in, pressing again swaps it for the next one, Enter sends it tagged">
 </p>
 
-### Minimap icon — `/mainmap`
+1. Add a phrase: `/mainphrase add ty for the group!` (or use the **Phrases** page).
+2. Set your key: **Phrases** page, or **Key Bindings → AddOns → Maines**.
+3. Press the key in chat. Press it again to swap. Press **Enter** to send.
 
-Toggles the Maines minimap icon on/off (it's on by default). While it's shown:
-- **Left-click** shows/hides the Maines UI (same as `/maines`)
-- **Right-click** rolls a new `/maincolor` palette
-- **Middle-click** resets the `/mainchat` filter instantly, regardless of sticky
-- It spins slowly, purely for fun
-- Drag it anywhere around the minimap ring
+Maines never sends anything for you. You always press Enter yourself.
 
-### Intro music — `/mainmusic`
+## Animated tag
 
-The Maines intro jingle only plays the first time you open the UI each session. Run `/mainmusic`
-to reset that, so it plays again next time you `/maines`.
+Your name, but restless. One step per message, or one step every 30 seconds to 15 minutes.
 
-### Version stamp — `/mainstamp`
+| Style | What your guild sees, message by message |
+|---|---|
+| Bracket cycle | `[Misamu]` → `(Misamu)` → `<Misamu>` → `{Misamu}` |
+| Typewriter | `[M]` → `[Mi]` → `[Mis]` → … → `[Misamu]` |
+| Capital wave | `[mIsamu]` → `[miSamu]` → `[misAmu]` → … → `[Misamu]` |
+| Twinkle | `[Misamu *]` → `[Misamu +]` → `[Misamu x]` → `[Misamu +]` |
+| My phrases | your tag, then your next saved phrase |
 
-Prints the current build stamp ("The GLYPH Stamp"). Maines uses stamps instead of
-alpha/beta/release version numbers.
+Pick one on the **Animate** page, or `/mainanim typewriter`. `/mainanim off` keeps it still.
 
-### In-game command reference — `/mainhelp`
+## Textual Badges
 
-Opens a movable, scrollable reference window (same flat-colored placeholder skin as the rest of
-the addon) instead of spamming chat — a short worked example of what a tagged message looks
-like, then every command above grouped by category (Setting Up Your Main, On Your Main vs.
-an Alt, Chat Channel Filtering, Cosmetic & Minimap, Utility) with an icon, a plain-English
-description, and a worked example for each. Press `Escape`, or click the close button, to dismiss
-it. Contextual notes are included where relevant (e.g. that `/mainchat -WHISPER` is handy if
-another addon already tags your whispers).
+Why say *gg* when you can send a five-line **GG** carved in text?
 
-Prefer plain chat instead (e.g. to copy/paste a command)? Run `/mainhelp text` for the original
-chat-printed version.
+<p align="center">
+  <img src="docs/media/badges.png" width="760" alt="The ten built-in Textual Badges: Heart, Shield, Sword, 3D Cube, 3D Pyramid, Crown, Glyph Stamp, GG, Murloc and Rose">
+</p>
 
-### Debugging — `/maindebug`
+Ten come in the box: **Heart, Shield, Sword, 3D Cube, 3D Pyramid, Crown, Glyph Stamp, GG, Murloc** and **Rose**.
+Draw and save your own on the **Badges** page.
 
-Toggles verbose debug printing of every tagging decision as you type: detected chat type (plus
-`clubId`/`streamId` when you're chatting in a community), your saved name/brackets, whether a
-channel filter is active and whether it matched, and whether the message was already tagged. Turn
-this on first if chat tagging ever appears to silently stop working — it'll show exactly which
-check is failing instead of guessing. If you're troubleshooting a report about a specific
-community, ask the reporter to run `/maindebug`, type in that community's chat, and share what
-prints — the `clubId` line confirms whether Maines even recognized it as community chat.
+- `/mainbadge` lists them.
+- `/mainbadge show 8` previews one, only for you.
+- `/mainbadge send 8 guild` sends it.
 
-## Notes
+One badge every 3 minutes. Your guild will thank you. Mostly.
 
-- If another addon already prefixes your whispers, use `/mainchat -WHISPER` to stop Maines from
-  doubling up on that channel.
-- Built on Ace3 (AceAddon-3.0 / AceHook-3.0) plus LibDataBroker-1.1 / LibDBIcon-1.0 for the
-  minimap icon.
+## Paint the brass
 
-## Status
+`/maincolor` (or right-click the minimap button) repaints the whole window from one of 13 palettes.
+Some come from famous paintings: *The Starry Night*, *The Great Wave*, *The Kiss*, *Nighthawks*, *The Scream* and more.
+Some come from closer to home: *Gnomeregan Copper*, *Undermine Neon*, *Ironforge Brass & Steel*, *Verdigris Goblin*.
+Pick a swatch yourself on the **Cosmetic** page. The reading text stays dark ink, so no roll can make it unreadable.
 
-- **GUI rewrite: `/maines` is now a tabbed control panel, not the old fixed textured frame.**
-  Main / Filter / Behavior / Cosmetic / Help tabs reach every command above without typing
-  syntax; every widget calls the same command handler documented here, so the GUI can't drift
-  out of sync with the text commands. The old hand-painted art (`bg`, `header`, `command_bg`,
-  `option`, `stamp`, `closebutton`, `parchment_tile`, the minimap icon, the mainhelp example
-  graphic) has all been retired to `img/old/` (gitignored, kept for reference only) and nothing
-  in the addon reads from it anymore — the window and the `/mainhelp` panel are built entirely
-  from flat-colored backdrops and Blizzard's own templates/icons as a placeholder skeleton for
-  the next art pass.
-- **Chat tagging: fixed and confirmed working on retail 12.1.0.** Patch 12.0.0 rearchitected
-  outgoing chat, which silently broke the old `SendChatMessage` hook (no errors, tag just never
-  appeared). Maines now hooks the modern `EventRegistry` `"ChatFrame.OnEditBoxPreSendText"`
-  callback and edits the chat edit box text directly before Blizzard reads it for sending, with
-  a `ChatEdit_SendText` hook kept as a fallback for Classic clients.
-- **Communities support:** `COMMUNITIES_CHANNEL`, `BN_WHISPER`, and the `*_LEADER` broadcast
-  types are now tagged by default alongside the classic channel list.
-- **Multiple communities fix:** users in more than one community reported the tag only working
-  for some of them. Blizzard doesn't reliably stamp the editbox's chat type as
-  `COMMUNITIES_CHANNEL` for every community you belong to — it can silently fall back to `SAY`,
-  which then gets filtered out by anyone running an explicit `/mainchat` list. Every club-chat
-  editbox does always carry a `clubId` though, so Maines now normalizes the chat type using that
-  instead, which works no matter how many communities you're in.
-- **On-main detection:** Maines now knows whether you're playing the character set as your main
-  and, by default, skips tagging in that case — see `/mainhide` / `/mainshow` above to change it.
-- **`/mainhelp` is now a window, not a chat dump:** a movable, scrollable panel with an icon per
-  command, built from the same data as the chat version (still available via `/mainhelp text`).
-- **The minimap icon now toggles the window** on left-click instead of only ever opening it.
-- **`/mainchat` filtering was silently broken:** comma-separated entries were never trimmed or
-  case-normalized, so `SAY, GUILD` (a space after the comma) produced a filter entry `" GUILD"`
-  that could never match the real chat type again — anything past the first channel in a list
-  silently stopped working. A mistyped `+whisper` (lowercase) was worse: it fell through to the
-  full-reset branch and replaced your entire filter with one bogus, unmatchable entry, silently
-  disabling all tagging. Everything is now uppercased and trimmed before matching, so case and
-  stray whitespace no longer matter.
-- **Fixed a total load failure ("nothing works, every command is unknown"):** a stray
-  `math.randomseed(time())` — added purely so `/maincolor` felt less repetitive across sessions —
-  ran immediately at file load rather than inside a function. `time()` isn't available as a
-  global in this client, so it threw right there, and Lua aborts the rest of the file on an
-  unhandled error — meaning no frames were ever created and no slash command ever got registered.
-  Confirmed by actually executing `maines.lua` against a stub WoW environment (not just
-  syntax-checking it) with `time` left undefined, which reproduced the exact crash, and again
-  after removing the call, which then loaded clean. Removed outright, then permanently
-  reintroduced using `GetTime()` (a core, always-available WoW timer API) wrapped in `pcall()`,
-  so even a future bad assumption here can't take the whole addon down again.
-- **`/mainchat` filters no longer persist by default:** a filter set once and forgotten about
-  used to silently keep excluding channels forever. It now resets to "tag everything" on every
-  fresh load unless you explicitly run `/mainchat sticky`. Middle-clicking the minimap icon also
-  clears it instantly at any time.
-- **`/mainchat` gained an include/exclude mode:** `/mainchat mode exclude` flips the filter into
-  a blacklist (tag everything *except* the listed channels), for cases like "tag everything but
-  whispers" without hand-listing every other channel type. `/mainchat mode include` (the default)
-  is the original whitelist behavior.
-- **`/mainchat -SAY,-YELL` could silently wipe the whole filter:** reported by a real user, not
-  just internal testing. The `+CHANNEL`/`-CHANNEL` pattern only ever matched one operation at a
-  time; a comma-separated pair of them fell through to the "replace the whole filter" branch and
-  got stored as the literal strings `"-SAY"`/`"-YELL"` (hyphens included), which could never
-  match a real chat type — silently disabling all tagging, not just SAY/YELL. `+CHANNEL`/
-  `-CHANNEL` now accept a comma-separated list of edits in one command, and mixing that style
-  with a plain channel-name list in the same command is rejected outright with a clear error
-  instead of silently falling through to whichever branch mishandles it.
-- **Still needed:** real gnomish/goblin-engineered artwork for the new tabbed window and
-  `/mainhelp` panel — both are currently the flat-colored placeholder skeleton described above.
-  `/maincolor` still works against it in the meantime.
+<p align="center">
+  <img src="docs/media/palettes.gif" width="560" alt="The Maines window being repainted by several /maincolor rolls">
+</p>
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `/mains <name> <bracket>` | Set your main and bracket: `/mains Misamu (`, `/mains Misamu *`, `/mains Misamu << >>` |
+| `/main` | Show what's set |
+| `/maines` | Open the window |
+| `/mainhide` · `/mainshow` | Stay quiet on your main (default) · always tag |
+| `/mainchat` | Choose channels: `SAY,GUILD`, `+WHISPER`, `-SAY,-YELL`, `list`, `mode exclude`, `sticky` |
+| `/mainphrase` | `add <text>`, `del <n>`, `list`, `clear`, `next`, `prev` |
+| `/mainanim` | `<style>`, `message`, `time <seconds>` |
+| `/mainbadge` | `list`, `show <n>`, `send <n> [channel]` |
+| `/maincolor` | Roll a new painting palette |
+| `/mainmap` | Show or hide the minimap button |
+| `/bracket` | List the built-in bracket styles |
+| `/mainhelp` | Every command, with examples, in a window (`/mainhelp text` prints to chat) |
+| `/mainnote` | What's new in this stamp |
+| `/mainstamp` | Which stamp you're running |
+| `/maindebug` | Explain every tagging decision as you type |
+
+**Minimap button:** left-click opens the window · right-click repaints it · middle-click clears your channel filter · drag to move.
+
+<details>
+<summary><b>More about channels</b></summary>
+
+By default every channel is tagged: say, yell, emote, party, raid, raid warning, instance, guild, officer,
+whispers, Battle.net whispers, channels and Communities (all of them, not just the first one).
+
+- `/mainchat SAY,GUILD` tags only those.
+- `/mainchat mode exclude` flips it: tag everything **except** the listed channels.
+- Case and spaces don't matter: `say, guild` works.
+- Filters reset to "tag everything" on `/reload` unless you turn on `/mainchat sticky`.
+  This stops a forgotten filter from silently hiding your tag for weeks.
+
+Another addon already tags your whispers? `/mainchat -WHISPER`.
+
+Valid names: `SAY`, `YELL`, `EMOTE`, `PARTY`, `PARTY_LEADER`, `RAID`, `RAID_LEADER`, `RAID_WARNING`,
+`INSTANCE_CHAT`, `INSTANCE_CHAT_LEADER`, `GUILD`, `OFFICER`, `WHISPER`, `BN_WHISPER`, `CHANNEL`,
+`COMMUNITIES_CHANNEL`, `VOICE_TEXT`, `AFK`, `DND`.
+</details>
+
+<details>
+<summary><b>Tag not showing up?</b></summary>
+
+1. Type `/main` and check your name is set.
+2. Are you on your main? Maines stays quiet there unless you `/mainshow`.
+3. Type `/mainchat list`. A forgotten filter may be skipping that channel. `/mainchat` alone clears it.
+4. Still stuck? Type `/maindebug`, say something, and send the lines it prints with your
+   [bug report](https://github.com/tuniveza/Maines/issues).
+</details>
+
+<details>
+<summary><b>For developers</b></summary>
+
+- **Tests:** `tests/run.sh` runs Maines offline under Lua 5.1 against a mocked WoW API (`tests/wowmock.lua`).
+- **Pictures:** `tools/` rebuilds the icons, textures and the README media from the real UI code.
+- **Releasing:** push an annotated tag named after the stamp (`git tag -a GLYPH -m GLYPH && git push origin GLYPH`).
+  [BigWigsMods/packager](https://github.com/BigWigsMods/packager) (`.github/workflows/release.yml`) builds
+  `Maines-<stamp>.zip` using `.pkgmeta`, publishes the GitHub release and uploads to CurseForge.
+  Player-facing notes come from `CHANGELOG.md`; the CurseForge page text lives in `docs/curseforge-description.md`.
+- **How tagging works on Midnight:** patch 12.0 rebuilt outgoing chat, which silently broke the old
+  `SendChatMessage` hook. Maines now edits the chat box text in the `ChatFrame.OnEditBoxPreSendText`
+  callback, just before Blizzard reads it, with a `ChatEdit_SendText` hook kept for Classic.
+  Community chat is detected by the edit box's `clubId`, because Blizzard doesn't always mark it as
+  `COMMUNITIES_CHANNEL`.
+- Built on Ace3 (AceAddon, AceHook) with LibDataBroker and LibDBIcon. Text is set in
+  [Agave](https://github.com/blobject/agave) (SIL Open Font License 1.1).
+</details>
 
 ## Author
 
-Dominic Hughes / Misamu — EU, Silvermoon (Alliance)
+Made by **Misamu** (Dominic Hughes) · EU Silvermoon · Alliance.
+Say hi in game. You'll know it's me: the tag gives it away.
