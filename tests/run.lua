@@ -796,6 +796,103 @@ test("17. the chosen palette survives /reload; a removed palette falls back to t
     eq(reload(Maines_DB).palette, "nil", "start look after reload")
 end)
 
+test("18. status line: what Maines prints to chat also shows in the window; other add-ons' prints don't", function()
+    local text = ns.StatusText
+    ok(text and text.GetText, "the window has a status line (ns.StatusText)")
+    ok(mock.isDescendant(text, Maines_Frame), "the status line is part of the Maines window")
+    slash("/maines")
+    local function status() return text:GetText() or "" end
+    local function printedHas(s)
+        for _, l in ipairs(mock.printed) do if l:find(s, 1, true) then return true end end
+    end
+
+    -- /mains: four chat lines as always, and the same facts on one line in the window
+    slash("/mains Statusname (")
+    ok(status():find("Statusname", 1, true), "/mains name in the status line, got " .. q(status()))
+    ok(status():find("Main Name", 1, true) and status():find("Bracket Type", 1, true), "/mains labels in the status line")
+    ok(printedHas("Statusname"), "/mains still prints to chat")
+
+    -- a bracket button in the window says the same
+    local braceBtn
+    for _, b in ipairs(mock.findFrames(function(o) return o._type == "Button" and o.GetText and o:GetText() == "{Statusname}" end)) do braceBtn = b end
+    ok(braceBtn, "found the {Statusname} bracket button")
+    mock.click(braceBtn, "LeftButton", true)
+    ok(status():find("{", 1, true) and status():find("Statusname", 1, true), "bracket button result in the status line, got " .. q(status()))
+
+    -- a chat-filter change: same words as the chat line, without the green "Maines:" prefix
+    local before = #mock.printed
+    slash("/mainchat +SAY")
+    local chatLine = mock.printed[#mock.printed]
+    ok(#mock.printed > before and chatLine:find("added SAY to filter", 1, true), "/mainchat +SAY printed to chat")
+    eq(status(), "Added SAY to filter", "filter change in the status line")
+    ok(not status():find("Maines|r:", 1, true), "no chat prefix in the window")
+
+    -- the feature files route through the same helper
+    slash("/mainanim twinkle")
+    ok(status():find("Twinkle", 1, true), "animation change in the status line, got " .. q(status()))
+    slash("/mainphrase add status line phrase")
+    ok(status():find("status line phrase", 1, true), "phrase added in the status line, got " .. q(status()))
+    ns.SaveCustomBadge("Statusbadge", "o/")
+    ok(status():find("Statusbadge", 1, true), "badge saved in the status line, got " .. q(status()))
+    local pal = ns.Palettes[1]
+    local hex = pal.colors[1]
+    ns.ApplyPaletteColor(tonumber(hex:sub(1, 2), 16) / 255, tonumber(hex:sub(3, 4), 16) / 255, tonumber(hex:sub(5, 6), 16) / 255, hex, pal.name)
+    ok(status():find(pal.name, 1, true), "palette change in the status line, got " .. q(status()))
+
+    -- someone else's print never lands in the Maines window
+    local kept = status()
+    print("OtherAddon: hello from somewhere else")
+    eq(status(), kept, "another add-on's print leaves the status line alone")
+
+    -- the line stays after the window closes and opens again, and is shown in full text
+    Maines_Frame:Hide(); slash("/maines")
+    eq(status(), kept, "status line kept across close/open")
+    ok(text._set.SetWordWrap and text._set.SetWordWrap[1] == false, "one line (long messages are cut with ... and shown on hover)")
+
+    -- tidy up for anything after this
+    slash("/mainphrase del " .. #ns.PhrasesDB().list)
+    ns.DeleteCustomBadge("Statusbadge")
+    slash("/mainanim off")
+    ns.ApplyPaletteColor(0.70, 0.47, 0.18)
+    resetTagging()
+end)
+
+test("19. Maines' own close buttons (no WoW X) close their windows; Escape still closes; greyed buttons", function()
+    for _, o in ipairs(mock.objects) do
+        if o._template and o._template:find("UIPanelCloseButton", 1, true) then
+            ok(not (mock.isDescendant(o, Maines_Frame) or mock.isDescendant(o, Maines_NoteFrame)
+                or mock.isDescendant(o, Maines_Help_Frame)), "a WoW close button is still on a Maines window")
+        end
+    end
+    local function closeOf(win)
+        for _, b in ipairs(mock.findFrames(function(o) return o.tooltip == "Close" and mock.isDescendant(o, win) end)) do return b end
+    end
+    slash("/maines"); slash("/mainnote"); slash("/mainhelp")
+    for _, win in ipairs({Maines_Frame, Maines_NoteFrame, Maines_Help_Frame}) do
+        local b = closeOf(win)
+        ok(b, (win:GetName() or "?") .. " has a Maines close button")
+        ok(b.marks and #b.marks == 2, "the close button draws its own x")
+        ok(win:IsShown(), (win:GetName() or "?") .. " open before the click")
+        mock.click(b, "LeftButton")
+        ok(not win:IsShown(), (win:GetName() or "?") .. " closed by its close button")
+    end
+    slash("/maines")
+    mock.fireScript(Maines_Frame, "OnKeyDown", "ESCAPE")
+    ok(not Maines_Frame:IsShown(), "Escape closes the window")
+
+    -- Delete is greyed for a built-in badge and live for one of your own
+    slash("/maines"); ns.ShowPanel("badges")
+    local del
+    for _, b in ipairs(mock.findFrames(function(o) return o._type == "Button" and o.GetText and o:GetText() == "Delete" end)) do del = b end
+    ok(del and del.SetUnavailable, "found the Delete button")
+    Maines_Badges_DB.selected = "Heart"; Maines_RefreshWindow()
+    ok(del.unavailable, "Delete greyed for a built-in badge")
+    ns.SaveCustomBadge("Greytest", "o/"); Maines_RefreshWindow()
+    ok(not del.unavailable, "Delete live for your own badge")
+    ns.DeleteCustomBadge("Greytest"); Maines_RefreshWindow()
+    Maines_Frame:Hide()
+end)
+
 -- ---------------------------------------------------------------- summary
 local function sortedKeys(t) local k = {}; for n in pairs(t) do k[#k + 1] = n end; table.sort(k); return k end
 out(("== %d passed, %d failed"):format(passed, failed))

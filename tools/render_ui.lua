@@ -20,8 +20,7 @@ local function fontKey(path)
     local p = tostring(path or ""):lower()
     if p:find("newrocker") then return "newrocker" end
     if p:find("vollkornsc") then return "vollkornsc" end
-    if p:find("firasans%-semibold") then return "fira_semibold" end
-    if p:find("firasans") then return "fira_medium" end
+    if p:find("firasans") then return "fira_semibold" end
     if p:find("breeserif") then return "breeserif" end
     if p:find("morpheus") then return "morpheus" end
     if p:find("arialn") then return "arialn" end
@@ -269,6 +268,9 @@ Maines_RefreshWindow()
 for _, b in ipairs(mock.findFrames(function(o) return o._type == "Button" and o.GetText and o:GetText() == "* Cat" end)) do
     mock.click(b, "LeftButton", true)
 end
+
+-- The status line above the footer shows the latest Maines message: the name and bracket.
+slash("/mains Tuniveza [")
 
 -- ---------------------------------------------------------------- frame tree -> rects
 local STRATA = { BACKGROUND = 1, LOW = 2, MEDIUM = 3, HIGH = 4, DIALOG = 5, FULLSCREEN = 6,
@@ -680,6 +682,34 @@ for i, palette in ipairs(ns.Palettes) do
     local r, g, b = tonumber(hex:sub(1, 2), 16) / 255, tonumber(hex:sub(3, 4), 16) / 255, tonumber(hex:sub(5, 6), 16) / 255
     ns.ApplyPaletteColor(r, g, b, nil, palette.name)
     snapshot("sheet_" .. i, Maines_Frame, { caption = palette.name .. "  #" .. hex })
+end
+
+-- MAINES_RENDER_PALETTES="Name;Name": every page, the note and the /mainhelp window again in
+-- each named palette (its first colour), to check the layout under other looks.
+local palNo = 0
+for want in (os.getenv("MAINES_RENDER_PALETTES") or ""):gmatch("[^;]+") do
+    want = want:gsub("^%s+", ""):gsub("%s+$", "")
+    for _, palette in ipairs(ns.Palettes) do
+        if palette.name == want then
+            palNo = palNo + 1
+            local hex = palette.colors[1]
+            ns.ApplyPaletteColor(tonumber(hex:sub(1, 2), 16) / 255, tonumber(hex:sub(3, 4), 16) / 255,
+                tonumber(hex:sub(5, 6), 16) / 255, hex, palette.name)
+            slash("/maines")
+            for _, key in ipairs(TABS) do
+                ns.ShowPanel(key)
+                Maines_RefreshWindow()
+                snapshot("pal_" .. palNo .. "_" .. key, Maines_Frame, { tab = key, caption = palette.name .. " - " .. key })
+            end
+            Maines_Frame:Hide()
+            slash("/mainnote")
+            snapshot("pal_" .. palNo .. "_note", Maines_NoteFrame, { caption = palette.name .. " - note" })
+            Maines_NoteFrame:Hide()
+            slash("/mainhelp")
+            snapshot("pal_" .. palNo .. "_helpwin", Maines_Help_Frame, { caption = palette.name .. " - /mainhelp" })
+            Maines_Help_Frame:Hide()
+        end
+    end
 end
 
 -- ---------------------------------------------------------------- JSON out

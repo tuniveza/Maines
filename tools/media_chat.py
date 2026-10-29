@@ -26,7 +26,7 @@ LIB_SANS = "/usr/share/fonts/liberation/LiberationSans-Regular.ttf"
 NARROW_FONT = os.path.join(ROOT, "tools", "fonts", "LiberationSansNarrow-Regular.ttf")
 UI_BOLD = os.path.join(ROOT, "fonts", "firasans", "FiraSans-SemiBold.ttf")    # labels
 UI_BUTTON = os.path.join(ROOT, "fonts", "breeserif", "BreeSerif-Regular.ttf")  # buttons, keys
-UI_BODY = os.path.join(ROOT, "fonts", "firasans", "FiraSans-Medium.ttf")       # body text
+UI_BODY = os.path.join(ROOT, "fonts", "firasans", "FiraSans-SemiBold.ttf")     # body text
 NBSP = " "
 
 S = 2                 # render scale: every pixel size below is a 1x size times S (README art at 2x)

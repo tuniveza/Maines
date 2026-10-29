@@ -361,26 +361,26 @@ function Maines_SendBadge(nameOrIndex, chatType)
     local db = DB()
     local badge = FindBadge(nameOrIndex or db.selected or 1)
     if not badge then
-        print(PREFIX .. "no badge called \"" .. tostring(nameOrIndex) .. "\" - /mainbadge lists them")
+        ns.Say(PREFIX .. "no badge called \"" .. tostring(nameOrIndex) .. "\" - /mainbadge lists them")
         return false
     end
     chatType = chatType or db.channel
     if #badge.lines == 0 then
-        print(PREFIX .. "the badge \"" .. badge.name .. "\" is empty")
+        ns.Say(PREFIX .. "the badge \"" .. badge.name .. "\" is empty")
         return false
     end
     if C_ChatInfo and C_ChatInfo.InChatMessagingLockdown and C_ChatInfo.InChatMessagingLockdown() then
-        print(PREFIX .. "WoW doesn't let addons send chat right now (encounter or match in progress) - try again after")
+        ns.Say(PREFIX .. "WoW doesn't let addons send chat right now (encounter or match in progress) - try again after")
         return false
     end
     local wait = CooldownLeft()
     if wait > 0 then
-        print(PREFIX .. "one Textual Badge every 3 minutes - the next one is ready in " .. Clock(wait))
+        ns.Say(PREFIX .. "one Textual Badge every 3 minutes - the next one is ready in " .. Clock(wait))
         return false
     end
     local problem = ChannelProblem(chatType, #badge.lines)
     if problem then
-        print(PREFIX .. "can't send to " .. (CHANNEL_BY_KEY[chatType] and CHANNEL_BY_KEY[chatType].label or chatType) .. ": " .. problem)
+        ns.Say(PREFIX .. "can't send to " .. (CHANNEL_BY_KEY[chatType] and CHANNEL_BY_KEY[chatType].label or chatType) .. ": " .. problem)
         return false
     end
 
@@ -404,22 +404,22 @@ end
 local function SaveCustom(name, art)
     name = strtrim(name or "")
     local db = DB()
-    if name == "" then print(PREFIX .. "give the badge a name first"); return false end
+    if name == "" then ns.Say(PREFIX .. "give the badge a name first"); return false end
     for _, p in ipairs(PRESET_BADGES) do
         if p.name:lower() == name:lower() then
-            print(PREFIX .. "\"" .. p.name .. "\" is a built-in badge - pick another name")
+            ns.Say(PREFIX .. "\"" .. p.name .. "\" is a built-in badge - pick another name")
             return false
         end
     end
     local lines = ToLines(art or "")
-    if #lines == 0 then print(PREFIX .. "the badge is empty - draw something first"); return false end
+    if #lines == 0 then ns.Say(PREFIX .. "the badge is empty - draw something first"); return false end
     if #lines > MAX_LINES then
-        print(PREFIX .. "a badge can be at most " .. MAX_LINES .. " lines (this one has " .. #lines .. ")")
+        ns.Say(PREFIX .. "a badge can be at most " .. MAX_LINES .. " lines (this one has " .. #lines .. ")")
         return false
     end
     for i, line in ipairs(lines) do
         if #ChatLine(line) > MAX_LINE_LETTERS then
-            print(PREFIX .. "line " .. i .. " is too long - keep each line under " .. MAX_LINE_LETTERS .. " letters")
+            ns.Say(PREFIX .. "line " .. i .. " is too long - keep each line under " .. MAX_LINE_LETTERS .. " letters")
             return false
         end
     end
@@ -427,17 +427,17 @@ local function SaveCustom(name, art)
         if c.name:lower() == name:lower() then
             c.art = table.concat(lines, "\n")
             db.selected = c.name
-            print(PREFIX .. "updated your badge \"" .. c.name .. "\"")
+            ns.Say(PREFIX .. "updated your badge \"" .. c.name .. "\"")
             return true
         end
     end
     if #db.custom >= MAX_CUSTOM then
-        print(PREFIX .. "you already have " .. MAX_CUSTOM .. " badges of your own - delete one first")
+        ns.Say(PREFIX .. "you already have " .. MAX_CUSTOM .. " badges of your own - delete one first")
         return false
     end
     table.insert(db.custom, {name = name, art = table.concat(lines, "\n")})
     db.selected = name
-    print(PREFIX .. "saved your badge \"" .. name .. "\"")
+    ns.Say(PREFIX .. "saved your badge \"" .. name .. "\"")
     return true
 end
 
@@ -447,7 +447,7 @@ local function DeleteCustom(name)
         if c.name == name then
             table.remove(db.custom, i)
             if db.selected == name then db.selected = nil end
-            print(PREFIX .. "deleted your badge \"" .. name .. "\"")
+            ns.Say(PREFIX .. "deleted your badge \"" .. name .. "\"")
             return true
         end
     end
@@ -462,16 +462,16 @@ SlashCmdList["MAINBADGE"] = function(msg)
     local cmd, rest = msg:match("^(%S*)%s*(.-)$")
     cmd = (cmd or ""):lower()
     if cmd == "" or cmd == "list" then
-        print(PREFIX .. "Textual Badges (send one with /mainbadge send <number> [guild|party|raid|...]):")
+        ns.Say(PREFIX .. "Textual Badges (send one with /mainbadge send <number> [guild|party|raid|...]):")
         for i, b in ipairs(AllBadges()) do
             print(("  %d. %s%s |cFF888888(%d lines)|r"):format(i, b.name, b.custom and " |cFF888888(yours)|r" or "", #b.lines))
         end
         local wait = CooldownLeft()
-        if wait > 0 then print(PREFIX .. "next badge ready in " .. Clock(wait)) end
+        if wait > 0 then ns.Say(PREFIX .. "next badge ready in " .. Clock(wait)) end
     elseif cmd == "show" then
         local b = FindBadge(rest ~= "" and rest or DB().selected)
-        if not b then print(PREFIX .. "no such badge - /mainbadge lists them"); return end
-        print(PREFIX .. b.name .. " (only you can see this - it's exactly what would be sent):")
+        if not b then ns.Say(PREFIX .. "no such badge - /mainbadge lists them"); return end
+        ns.Say(PREFIX .. b.name .. " (only you can see this - it's exactly what would be sent):")
         for _, line in ipairs(BadgeChatLines(b.lines)) do print(line) end
     elseif cmd == "send" then
         local which, chan = rest:match("^(.-)%s+(%a+)$")
@@ -484,7 +484,7 @@ SlashCmdList["MAINBADGE"] = function(msg)
         if not chatType then which = rest end
         Maines_SendBadge(which ~= "" and which or nil, chatType)
     else
-        print(PREFIX .. "usage: /mainbadge [list] | show <number> | send <number> [channel]")
+        ns.Say(PREFIX .. "usage: /mainbadge [list] | show <number> | send <number> [channel]")
     end
 end
 
@@ -493,6 +493,7 @@ end
 local panel = ns.Panels.badges
 local W = ns.PANEL_WIDTH
 local C = ns.Colors
+local SP = ns.SP
 local CHAT_FONT = ChatFontNormal or ns.Fonts.Body
 
 local function Label(parent, text, font, color)
@@ -520,32 +521,36 @@ end
 local _, y = ns.MakeHeading(panel, "Textual Badges", 0, 0, W)
 local intro = Label(panel, "Send a whole picture to chat, one line per row. One badge every 3 minutes. "
     .. "Other players see it in their own chat font, so spacing can shift a little.", ns.Fonts.Body, C.INK_SOFT)
-intro:SetPoint("TOPLEFT", 0, y)
-intro:SetWidth(W)
-y = y - intro:GetStringHeight() - 10
+-- A reading width narrower than the page, so the intro wraps into even lines.
+intro:SetPoint("TOP", panel, "TOP", 0, y)
+ns.BalanceText(intro, ns.READ_W)
+y = y - intro:GetStringHeight() - SP.l
 
--- Left: the list of badges (presets, then your own).
-local LIST_W, LIST_H = 150, 276
--- Rows are 22 tall, one every 24: the 268-tall list shows 11 whole rows (10 presets + 1 of
--- yours) before it needs to scroll, instead of cutting the 11th row off at the bottom.
-local ROW_H, ROW_STEP = 22, 24
+-- Left: the list of badges (presets, then your own). Rows are 26 tall, one every 30: the list
+-- shows 8 whole rows (xs padding top and bottom) and scrolls for the rest, instead of cutting a
+-- row off at the bottom.
+local ROW_H, ROW_STEP = 26, 30
+local LIST_W, LIST_H = 180, 8 * 30 - 4 + 2 * SP.xs
 local listFrame = CreateFrame("Frame", nil, panel, "BackdropTemplate")
 listFrame:SetPoint("TOPLEFT", 0, y)
 listFrame:SetSize(LIST_W, LIST_H)
 ns.MakeFlatBackdrop(listFrame, {0.86, 0.76, 0.56, 1}, C.BORDER_DARK, 1)
 local listScroll = CreateFrame("ScrollFrame", nil, listFrame, "UIPanelScrollFrameTemplate")
-listScroll:SetPoint("TOPLEFT", 4, -4)
-listScroll:SetPoint("BOTTOMRIGHT", -24, 4)
+listScroll:SetPoint("TOPLEFT", SP.xs, -SP.xs)
+listScroll:SetPoint("BOTTOMRIGHT", -24, SP.xs)
 local listChild = CreateFrame("Frame", nil, listScroll)
 listChild:SetSize(LIST_W - 28, 1)
 listScroll:SetScrollChild(listChild)
 
--- Right: the preview, channel choice and send button.
-local RIGHT_X = LIST_W + 12
+-- Right: the preview, channel choice and send button, together exactly as tall as the list.
+local RIGHT_X = LIST_W + SP.l
 local RIGHT_W = W - RIGHT_X
+local CH_W, CH_H = 92, ns.BUTTON_H
+local SEND_H = ns.BUTTON_H + 2
+local PREVIEW_H = LIST_H - SP.m - (2 * CH_H + SP.s) - SP.m - SEND_H
 local preview = CreateFrame("Frame", nil, panel, "BackdropTemplate")
 preview:SetPoint("TOPLEFT", RIGHT_X, y)
-preview:SetSize(RIGHT_W, 164)
+preview:SetSize(RIGHT_W, PREVIEW_H)
 DarkPlate(preview)
 local previewText = preview:CreateFontString(nil, "OVERLAY")
 previewText:SetFontObject(CHAT_FONT)
@@ -556,69 +561,72 @@ previewText:SetJustifyH("LEFT")
 previewText:SetJustifyV("MIDDLE")
 previewText:SetTextColor(0.95, 0.88, 0.72)
 
-local ry = y - 172
+local ry = y - PREVIEW_H - SP.m
+-- "Send to:" on the left of the two rows of channel buttons, all centred as one block.
 local sendToLabel = Label(panel, "Send to:", ns.Fonts.Header, C.INK)
-sendToLabel:SetPoint("TOP", panel, "TOPLEFT", RIGHT_X + RIGHT_W / 2, ry - 4)
 local channelButtons = {}
-local CH_W, CH_H = 72, 22
+local gridW = sendToLabel:GetStringWidth() + SP.m + 4 * CH_W + 3 * SP.s
+local gridX = RIGHT_X + math.floor((RIGHT_W - gridW) / 2) + sendToLabel:GetStringWidth() + SP.m
+sendToLabel:SetPoint("TOPRIGHT", panel, "TOPLEFT", gridX - SP.m, ry - (CH_H - sendToLabel:GetStringHeight()) / 2)
 for i, ch in ipairs(CHANNELS) do
     local col, row = (i - 1) % 4, math.floor((i - 1) / 4)
     local btn = ns.MakeButton(panel, CH_W, CH_H, ch.label)
-    local gridX = RIGHT_X + math.floor((RIGHT_W - (4 * CH_W + 3 * 4)) / 2)
-    btn:SetPoint("TOPLEFT", gridX + col * (CH_W + 4), ry - 22 - row * (CH_H + 4))
+    btn:SetPoint("TOPLEFT", gridX + col * (CH_W + SP.s), ry - row * (CH_H + SP.s))
     btn:SetScript("OnClick", function() DB().channel = ch.key; Maines_RefreshWindow() end)
     channelButtons[ch.key] = btn
 end
-ry = ry - 22 - 2 * (CH_H + 4) - 6
+ry = ry - 2 * CH_H - SP.s - SP.m
 
-local sendBtn = ns.MakeButton(panel, 150, 26, "Send Badge")
--- Send button and the cooldown text (about 130px) centered together under the channels.
-sendBtn:SetPoint("TOPLEFT", RIGHT_X + math.floor((RIGHT_W - 292) / 2), ry)
+local sendBtn = ns.MakeButton(panel, 170, SEND_H, "Send Badge")
+-- Send button and the cooldown text (about 140 wide) centred together under the channels.
+sendBtn:SetPoint("TOPLEFT", RIGHT_X + math.floor((RIGHT_W - (170 + SP.m + 140)) / 2), ry)
 sendBtn:SetScript("OnClick", function()
     if Maines_SendBadge() then Maines_RefreshWindow() end
 end)
 local cooldownText = Label(panel, "", ns.Fonts.Body, C.INK_SOFT)
-cooldownText:SetPoint("LEFT", sendBtn, "RIGHT", 12, 0)
+cooldownText:SetPoint("LEFT", sendBtn, "RIGHT", SP.m, 0)
 
-y = y - LIST_H - 14
+y = y - LIST_H - SP.xl
 
 -- Bottom: make your own.
 local _, cy = ns.MakeHeading(panel, "Make your own badge", 0, y, W)
 y = cy
-local nameLabel = Label(panel, "Name:", ns.Fonts.Body, C.INK)
--- Name, box, Save, Delete and the hint centered as one ~446px row.
-local rowX = math.floor((W - 446) / 2)
-nameLabel:SetPoint("TOPLEFT", rowX, y - 4)
+local nameLabel = Label(panel, "Name:", ns.Fonts.Header, C.INK)
+local editHint = Label(panel, "Up to " .. MAX_LINES .. " lines.", ns.Fonts.BodySmall, C.INK_SOFT)
+-- Name, box, Save, Delete and the hint centred as one row.
+local NAME_W, EDIT_BTN_W = 170, 96
+local rowW = nameLabel:GetStringWidth() + SP.s + NAME_W + SP.m + 2 * EDIT_BTN_W + SP.s + SP.m + editHint:GetStringWidth()
+local rowX = math.floor((W - rowW) / 2)
+nameLabel:SetPoint("TOPLEFT", rowX, y - (ns.BUTTON_H - nameLabel:GetStringHeight()) / 2)
 local nameBox = CreateFrame("EditBox", nil, panel, "InputBoxTemplate")
-nameBox:SetSize(140, 20)
-nameBox:SetPoint("TOPLEFT", rowX + 50, y)
+nameBox:SetSize(NAME_W, ns.INPUT_H)
+nameBox:SetPoint("TOPLEFT", rowX + nameLabel:GetStringWidth() + SP.s, y - (ns.BUTTON_H - ns.INPUT_H) / 2)
 nameBox:SetAutoFocus(false)
 nameBox:SetJustifyH("CENTER")
 nameBox:SetMaxLetters(24)
 nameBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
 
-local saveBtn = ns.MakeButton(panel, 80, 22, "Save")
-saveBtn:SetPoint("LEFT", nameBox, "RIGHT", 10, 0)
-local deleteBtn = ns.MakeButton(panel, 80, 22, "Delete")
-deleteBtn:SetPoint("LEFT", saveBtn, "RIGHT", 6, 0)
+local saveBtn = ns.MakeButton(panel, EDIT_BTN_W, ns.BUTTON_H, "Save")
+saveBtn:SetPoint("LEFT", nameBox, "RIGHT", SP.m, 0)
+local deleteBtn = ns.MakeButton(panel, EDIT_BTN_W, ns.BUTTON_H, "Delete")
+deleteBtn:SetPoint("LEFT", saveBtn, "RIGHT", SP.s, 0)
 deleteBtn.tooltip = "Delete the selected badge (only your own badges can be deleted)"
-local editHint = Label(panel, "Up to " .. MAX_LINES .. " lines.", ns.Fonts.BodySmall, C.INK_SOFT)
-editHint:SetPoint("LEFT", deleteBtn, "RIGHT", 10, 0)
-y = y - 28
+editHint:SetPoint("LEFT", deleteBtn, "RIGHT", SP.m, 0)
+y = y - ns.BUTTON_H - SP.m
 
 local editFrame = CreateFrame("Frame", nil, panel, "BackdropTemplate")
 editFrame:SetPoint("TOPLEFT", 0, y)
 editFrame:SetPoint("BOTTOMRIGHT", 0, 0)
 DarkPlate(editFrame)
 local editScroll = CreateFrame("ScrollFrame", nil, editFrame, "UIPanelScrollFrameTemplate")
-editScroll:SetPoint("TOPLEFT", 8, -6)
-editScroll:SetPoint("BOTTOMRIGHT", -28, 6)
+editScroll:SetPoint("TOPLEFT", SP.m, -SP.s)
+editScroll:SetPoint("BOTTOMRIGHT", -28, SP.s)
 local artBox = CreateFrame("EditBox", nil, editScroll)
 artBox:SetMultiLine(true)
 artBox:SetAutoFocus(false)
 artBox:SetFontObject(CHAT_FONT)
 artBox:SetTextColor(0.95, 0.88, 0.72)
-artBox:SetWidth(W - 40)
+artBox:SetWidth(W - 28 - SP.m - SP.s)
 artBox:SetMaxLetters(MAX_LINES * MAX_LINE_LETTERS)
 artBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
 editScroll:SetScrollChild(artBox)
@@ -638,7 +646,7 @@ deleteBtn:SetScript("OnClick", function()
         nameBox:SetText(""); artBox:SetText("")
         Maines_RefreshWindow()
     else
-        print(PREFIX .. "select one of your own badges first - the built-in ones can't be deleted")
+        ns.Say(PREFIX .. "select one of your own badges first - the built-in ones can't be deleted")
     end
 end)
 
@@ -659,6 +667,8 @@ local function UpdateCooldown()
     else
         cooldownText:SetText("|cFF2E6B1EReady to send|r")
     end
+    -- greyed while cooling down (a click still says how long is left)
+    sendBtn:SetUnavailable(wait > 0)
 end
 
 local tick = 0
@@ -694,5 +704,7 @@ table.insert(ns.RefreshHooks, function()
     for key, btn in pairs(channelButtons) do
         if key == db.channel then btn:Disable() else btn:Enable() end
     end
+    -- only your own badges can be deleted: greyed for a built-in one (a click says so)
+    deleteBtn:SetUnavailable(not (selected and selected.custom))
     UpdateCooldown()
 end)

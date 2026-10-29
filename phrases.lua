@@ -75,31 +75,31 @@ end
 -- current binding set, exactly as the Key Bindings menu would.
 function ns.SetActionKey(action, combo)
     if InCombatLockdown() then
-        print(PREFIX .. "key bindings can't be changed in combat - try again after the fight")
+        ns.Say(PREFIX .. "key bindings can't be changed in combat - try again after the fight")
         return false
     end
     local previous = GetBindingAction(combo)
     for _, old in ipairs({GetBindingKey(action)}) do SetBinding(old) end
     if not SetBinding(combo, action) then
-        print(PREFIX .. "WoW refused the key " .. combo)
+        ns.Say(PREFIX .. "WoW refused the key " .. combo)
         return false
     end
     SaveBindings(GetCurrentBindingSet())
-    print(PREFIX .. _G["BINDING_NAME_" .. action] .. " is now |cFFFFE4B5" .. combo .. "|r")
+    ns.Say(PREFIX .. _G["BINDING_NAME_" .. action] .. " is now |cFFFFE4B5" .. combo .. "|r")
     if previous and previous ~= "" and previous ~= action then
-        print(PREFIX .. combo .. " used to do: " .. (_G["BINDING_NAME_" .. previous] or previous))
+        ns.Say(PREFIX .. combo .. " used to do: " .. (_G["BINDING_NAME_" .. previous] or previous))
     end
     return true
 end
 
 function ns.ClearActionKey(action)
     if InCombatLockdown() then
-        print(PREFIX .. "key bindings can't be changed in combat - try again after the fight")
+        ns.Say(PREFIX .. "key bindings can't be changed in combat - try again after the fight")
         return
     end
     for _, old in ipairs({GetBindingKey(action)}) do SetBinding(old) end
     SaveBindings(GetCurrentBindingSet())
-    print(PREFIX .. _G["BINDING_NAME_" .. action] .. " key cleared")
+    ns.Say(PREFIX .. _G["BINDING_NAME_" .. action] .. " key cleared")
 end
 
 -- ---- Cycling ----
@@ -113,7 +113,7 @@ function Maines_CyclePhrase(step, box)
     local db = DB()
     local n = #db.list
     if n == 0 then
-        print(PREFIX .. "no saved phrases yet - add some on the Phrases page (/maines) or with /mainphrase add <text>")
+        ns.Say(PREFIX .. "no saved phrases yet - add some on the Phrases page (/maines) or with /mainphrase add <text>")
         return
     end
     local i = db.index
@@ -174,20 +174,20 @@ local function AddPhrase(text)
     text = strtrim(text or "")
     local db = DB()
     if text == "" then
-        print(PREFIX .. "nothing to add - type the phrase first")
+        ns.Say(PREFIX .. "nothing to add - type the phrase first")
         return false
     end
     if #db.list >= MAX_PHRASES then
-        print(PREFIX .. "you already have " .. MAX_PHRASES .. " phrases - remove one first")
+        ns.Say(PREFIX .. "you already have " .. MAX_PHRASES .. " phrases - remove one first")
         return false
     end
     if #text > MAX_PHRASE_LETTERS then
         -- Not cut short: a cut could split a letter or a "||" pipe and break the message.
-        print(PREFIX .. "that phrase is too long for one chat line - keep it under " .. MAX_PHRASE_LETTERS .. " bytes")
+        ns.Say(PREFIX .. "that phrase is too long for one chat line - keep it under " .. MAX_PHRASE_LETTERS .. " bytes")
         return false
     end
     table.insert(db.list, text)
-    print(PREFIX .. "saved phrase " .. #db.list .. ": " .. text)
+    ns.Say(PREFIX .. "saved phrase " .. #db.list .. ": " .. text)
     return true
 end
 ns.AddPhrase = AddPhrase
@@ -195,12 +195,12 @@ ns.AddPhrase = AddPhrase
 local function RemovePhrase(i)
     local db = DB()
     if not db.list[i] then
-        print(PREFIX .. "there's no phrase number " .. tostring(i))
+        ns.Say(PREFIX .. "there's no phrase number " .. tostring(i))
         return
     end
     local removed = table.remove(db.list, i)
     if db.index >= i then db.index = db.index - 1 end
-    print(PREFIX .. "removed: " .. removed)
+    ns.Say(PREFIX .. "removed: " .. removed)
 end
 ns.RemovePhrase = RemovePhrase
 
@@ -212,9 +212,9 @@ SlashCmdList["MAINPHRASE"] = function(msg)
     local db = DB()
     if cmd == "" or cmd == "list" then
         if #db.list == 0 then
-            print(PREFIX .. "no saved phrases. Add one: /mainphrase add <text>")
+            ns.Say(PREFIX .. "no saved phrases. Add one: /mainphrase add <text>")
         else
-            print(PREFIX .. "saved phrases (next key: " .. ns.BindingText("MAINES_NEXT_PHRASE") .. "):")
+            ns.Say(PREFIX .. "saved phrases (next key: " .. ns.BindingText("MAINES_NEXT_PHRASE") .. "):")
             for i, p in ipairs(db.list) do print("  " .. i .. ". " .. p) end
         end
     elseif cmd == "add" then
@@ -224,13 +224,13 @@ SlashCmdList["MAINPHRASE"] = function(msg)
     elseif cmd == "clear" then
         wipe(db.list)
         db.index = 0
-        print(PREFIX .. "all saved phrases removed")
+        ns.Say(PREFIX .. "all saved phrases removed")
     elseif cmd == "next" then
         Maines_CyclePhrase(1)
     elseif cmd == "prev" then
         Maines_CyclePhrase(-1)
     else
-        print(PREFIX .. "usage: /mainphrase [list] | add <text> | del <number> | clear | next | prev")
+        ns.Say(PREFIX .. "usage: /mainphrase [list] | add <text> | del <number> | clear | next | prev")
     end
     if Maines_RefreshWindow and Maines_Frame and Maines_Frame:IsShown() then Maines_RefreshWindow() end
 end
@@ -240,6 +240,7 @@ end
 local panel = ns.Panels.phrases
 local W = ns.PANEL_WIDTH
 local C = ns.Colors
+local SP = ns.SP
 
 local function Label(parent, text, font, color)
     local fs = parent:CreateFontString(nil, "OVERLAY")
@@ -255,20 +256,21 @@ local _, y = ns.MakeHeading(panel, "Saved phrases", 0, 0, W)
 
 local intro = Label(panel, "Words, sentences or symbols you use a lot. Your shortcut key puts the next one into "
     .. "the chat box; press it again to swap to the one after. Press Enter to send.", ns.Fonts.Body, C.INK_SOFT)
-intro:SetPoint("TOPLEFT", 0, y)
-intro:SetWidth(W)
-y = y - intro:GetStringHeight() - 12
+-- A reading width narrower than the page, so the intro wraps into even lines.
+intro:SetPoint("TOP", panel, "TOP", 0, y)
+ns.BalanceText(intro, ns.READ_W)
+y = y - intro:GetStringHeight() - SP.l
 
 local input = CreateFrame("EditBox", nil, panel, "InputBoxTemplate")
--- Box and Add button centered together: 360 + 10 + 90 = 460 wide.
-input:SetSize(360, 22)
-input:SetPoint("TOP", -50, y)
+-- Box and Add button centred together: 420 + m + 96 wide.
+input:SetSize(420, ns.INPUT_H)
+input:SetPoint("TOP", -(96 + SP.m) / 2, y - (ns.BUTTON_H - ns.INPUT_H) / 2)
 input:SetAutoFocus(false)
 input:SetJustifyH("CENTER")
 input:SetMaxLetters(MAX_PHRASE_LETTERS)
 
-local addBtn = ns.MakeButton(panel, 90, 24, "Add")
-addBtn:SetPoint("LEFT", input, "RIGHT", 10, 0)
+local addBtn = ns.MakeButton(panel, 96, ns.BUTTON_H, "Add")
+addBtn:SetPoint("LEFT", input, "RIGHT", SP.m, 0)
 local function AddFromInput()
     if AddPhrase(input:GetText()) then
         input:SetText("")
@@ -279,22 +281,23 @@ end
 addBtn:SetScript("OnClick", AddFromInput)
 input:SetScript("OnEnterPressed", AddFromInput)
 input:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-y = y - 34
+y = y - ns.BUTTON_H - SP.m
 
 -- The list: a scrolling column of rows, each with its number, the phrase, a "Use" button that
 -- drops it into chat, and a remove button.
-local LIST_HEIGHT = 196
-local ROW_HEIGHT = 24
+-- Six whole rows show before it scrolls (6 x 32 + s padding top and bottom).
+local ROW_HEIGHT = 32
+local LIST_HEIGHT = 6 * ROW_HEIGHT + 2 * SP.s
 local listFrame = CreateFrame("Frame", nil, panel, "BackdropTemplate")
 listFrame:SetPoint("TOPLEFT", 0, y)
 listFrame:SetSize(W, LIST_HEIGHT)
 ns.MakeFlatBackdrop(listFrame, {0.86, 0.76, 0.56, 1}, C.BORDER_DARK, 1)
 
 local listScroll = CreateFrame("ScrollFrame", nil, listFrame, "UIPanelScrollFrameTemplate")
-listScroll:SetPoint("TOPLEFT", 6, -6)
-listScroll:SetPoint("BOTTOMRIGHT", -26, 6)
+listScroll:SetPoint("TOPLEFT", SP.s, -SP.s)
+listScroll:SetPoint("BOTTOMRIGHT", -28, SP.s)
 local listChild = CreateFrame("Frame", nil, listScroll)
-listChild:SetSize(W - 34, 1)
+listChild:SetSize(W - 36, 1)
 listScroll:SetScrollChild(listChild)
 
 local emptyText = Label(listFrame, "No phrases yet - type one above and press Add.", ns.Fonts.Body, C.INK_SOFT)
@@ -304,7 +307,7 @@ local rows = {}
 local function GetRow(i)
     if rows[i] then return rows[i] end
     local row = CreateFrame("Frame", nil, listChild)
-    row:SetSize(W - 34, ROW_HEIGHT)
+    row:SetSize(W - 36, ROW_HEIGHT)
     row:SetPoint("TOPLEFT", 0, -(i - 1) * ROW_HEIGHT)
     if i % 2 == 0 then
         local stripe = row:CreateTexture(nil, "BACKGROUND")
@@ -313,18 +316,18 @@ local function GetRow(i)
         stripe:SetVertexColor(0.30, 0.19, 0.09, 0.08)
     end
     row.num = Label(row, "", ns.Fonts.Button, C.INK_SOFT)
-    row.num:SetPoint("LEFT", 4, 0)
-    row.num:SetWidth(24)
+    row.num:SetPoint("LEFT", SP.s, 0)
+    row.num:SetWidth(28)
     row.num:SetJustifyH("LEFT")
-    row.del = ns.MakeButton(row, 26, 20, "x")
-    row.del:SetPoint("RIGHT", -2, 0)
+    row.del = ns.MakeButton(row, 32, 24, "x")
+    row.del:SetPoint("RIGHT", -SP.xs, 0)
     row.del.tooltip = "Remove this phrase"
-    row.use = ns.MakeButton(row, 46, 20, "Use")
-    row.use:SetPoint("RIGHT", row.del, "LEFT", -4, 0)
+    row.use = ns.MakeButton(row, 56, 24, "Use")
+    row.use:SetPoint("RIGHT", row.del, "LEFT", -SP.xs, 0)
     row.use.tooltip = "Put this phrase into the chat box"
     row.text = Label(row, "", ns.Fonts.Body, C.INK)
-    row.text:SetPoint("LEFT", row.num, "RIGHT", 4, 0)
-    row.text:SetPoint("RIGHT", row.use, "LEFT", -8, 0)
+    row.text:SetPoint("LEFT", row.num, "RIGHT", SP.s, 0)
+    row.text:SetPoint("RIGHT", row.use, "LEFT", -SP.m, 0)
     row.text:SetWordWrap(false)
     row.del:SetScript("OnClick", function(self)
         RemovePhrase(self:GetParent().index)
@@ -338,7 +341,7 @@ local function GetRow(i)
     return row
 end
 
-y = y - LIST_HEIGHT - 16
+y = y - LIST_HEIGHT - SP.xl
 
 -- Shortcut keys
 local _, ky = ns.MakeHeading(panel, "Keyboard shortcuts", 0, y, W)
@@ -359,7 +362,7 @@ end
 capture:SetScript("OnKeyDown", function(self, key)
     if key == "ESCAPE" then StopCapture(); return end
     if key == "ENTER" then
-        print(PREFIX .. "Enter opens chat, so it can't be a phrase key - press another key (Escape cancels)")
+        ns.Say(PREFIX .. "Enter opens chat, so it can't be a phrase key - press another key (Escape cancels)")
         return
     end
     local combo = ns.KeyCombo(key)
@@ -380,7 +383,7 @@ ns.KeyCaptureFrame = capture
 
 function ns.StartKeyCapture(button, action)
     if InCombatLockdown() then
-        print(PREFIX .. "key bindings can't be changed in combat - try again after the fight")
+        ns.Say(PREFIX .. "key bindings can't be changed in combat - try again after the fight")
         return
     end
     capture.button, capture.action = button, action
@@ -390,30 +393,33 @@ end
 
 local keyRows = {}
 local function KeyRow(action, labelText)
+    -- label | key | Set key | Clear in fixed columns (170 | 130 | 140 | 80, gaps m), so both
+    -- rows line up; the row is centred as one block.
+    local LBL_W, KEY_W, SET_W, CLR_W = 170, 130, 140, 80
+    local x0 = math.floor((W - (LBL_W + KEY_W + SET_W + CLR_W + 3 * SP.m)) / 2)
     local lbl = Label(panel, labelText, ns.Fonts.Body, C.INK)
-    -- label | key | Set key | Clear, centered as one 458px-wide row
-    local x0 = math.floor((W - 458) / 2)
-    lbl:SetPoint("TOPLEFT", x0, y - 5)
-    lbl:SetWidth(150)
+    local textY = y - math.floor((ns.BUTTON_H - 14) / 2)
+    lbl:SetPoint("TOPLEFT", x0, textY)
+    lbl:SetWidth(LBL_W)
     lbl:SetJustifyH("RIGHT")
     local keyText = Label(panel, "", ns.Fonts.Button, C.INK)
-    keyText:SetPoint("TOPLEFT", x0 + 156, y - 5)
-    keyText:SetWidth(120)
-    local setBtn = ns.MakeButton(panel, 110, 22, "Set key")
-    setBtn:SetPoint("TOPLEFT", x0 + 282, y)
+    keyText:SetPoint("TOPLEFT", x0 + LBL_W + SP.m, textY)
+    keyText:SetWidth(KEY_W)
+    local setBtn = ns.MakeButton(panel, SET_W, ns.BUTTON_H, "Set key")
+    setBtn:SetPoint("TOPLEFT", x0 + LBL_W + KEY_W + 2 * SP.m, y)
     setBtn:SetScript("OnClick", function(self) ns.StartKeyCapture(self, action) end)
-    local clearBtn = ns.MakeButton(panel, 60, 22, "Clear")
-    clearBtn:SetPoint("LEFT", setBtn, "RIGHT", 6, 0)
+    local clearBtn = ns.MakeButton(panel, CLR_W, ns.BUTTON_H, "Clear")
+    clearBtn:SetPoint("LEFT", setBtn, "RIGHT", SP.m, 0)
     clearBtn:SetScript("OnClick", function() ns.ClearActionKey(action); Maines_RefreshWindow() end)
     table.insert(keyRows, {action = action, text = keyText})
-    y = y - 30
+    y = y - ns.BUTTON_H - SP.s
 end
 KeyRow("MAINES_NEXT_PHRASE", "Next phrase:")
 KeyRow("MAINES_PREV_PHRASE", "Previous phrase:")
 
 local tip = Label(panel, "Tip: pick a key with Ctrl or Alt (for example Ctrl-1), so it doesn't also type a "
     .. "letter while the chat box is open.", ns.Fonts.BodySmall, C.INK_SOFT)
-tip:SetPoint("TOPLEFT", 0, y - 4)
+tip:SetPoint("TOPLEFT", 0, y - SP.s)
 tip:SetWidth(W)
 
 table.insert(ns.RefreshHooks, function()

@@ -9,6 +9,9 @@
 3. Draws that JSON with Pillow + numpy into docs/media/.
 
 Run from anywhere:  python3 tools/render_ui.py
+Checking every page in other palettes too: MAINES_RENDER_PALETTES="Name;Name" (palette names
+from Color_Palettes) adds each page, the note and the /mainhelp window in those palettes, saved
+as <MAINES_PALETTE_FRAMES or the output dir>/pal-<n>-<page>.png.
 """
 import json
 import math
@@ -21,7 +24,9 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-OUT_DIR = os.path.join(ROOT, "docs", "media")
+# MAINES_MEDIA_OUT=<dir> writes the pictures there instead (e.g. to check a change without
+# touching docs/media).
+OUT_DIR = os.environ.get("MAINES_MEDIA_OUT") or os.path.join(ROOT, "docs", "media")
 S = 2            # pixels per UI unit (render at 2x for crispness)
 MARGIN = 40      # UI units of backdrop around the window
 
@@ -33,7 +38,6 @@ FONTS = {
     "newrocker": {"path": os.path.join(ROOT, "fonts/newrocker/NewRocker-Regular.ttf")},
     "vollkornsc": {"path": os.path.join(ROOT, "fonts/vollkornsc/VollkornSC-Bold.ttf")},
     "fira_semibold": {"path": os.path.join(ROOT, "fonts/firasans/FiraSans-SemiBold.ttf")},
-    "fira_medium": {"path": os.path.join(ROOT, "fonts/firasans/FiraSans-Medium.ttf")},
     "breeserif": {"path": os.path.join(ROOT, "fonts/breeserif/BreeSerif-Regular.ttf")},
     # WoW's engraved quest-title face -> Cinzel (OFL, tools/fonts/)
     "morpheus": {"path": os.path.join(ROOT, "tools/fonts/Cinzel.ttf"), "variation": b"Bold"},
@@ -509,7 +513,7 @@ def caption_strip(rgb, text, h_units=26):
     out = np.concatenate([rgb, strip], axis=0)
     im = to_image(out)
     d = ImageDraw.Draw(im)
-    f = font("fira_medium", 13 * S)
+    f = font("fira_semibold", 13 * S)
     tw = f.getlength(text)
     d.text(((W - tw) / 2, H + 2 * S), text, font=f, fill=(222, 206, 170))
     return np.asarray(im, np.float32) / 255.0
@@ -555,6 +559,16 @@ def main():
         keep = os.environ["MAINES_PALETTE_FRAMES"]
         os.makedirs(keep, exist_ok=True)
         to_image(render_scene(scenes["helpwin"], crop_for(scenes["helpwin"]))).save(os.path.join(keep, "help-window.png"))
+
+    # every page, the note and the /mainhelp window again in each MAINES_RENDER_PALETTES palette
+    keep_dir = os.environ.get("MAINES_PALETTE_FRAMES") or OUT_DIR
+    for sc in data["scenes"]:
+        if sc["name"].startswith("pal_"):
+            os.makedirs(keep_dir, exist_ok=True)
+            c = crop if sc.get("tab") else crop_for(sc)
+            path = os.path.join(keep_dir, sc["name"].replace("_", "-") + ".png")
+            to_image(caption_strip(render_scene(sc, c), sc.get("caption", ""))).save(path)
+            print("wrote", path)
 
     # tour: empty backdrop, the window's 0.18 s fade-in (smoothing OUT), then each page ~2 s
     empty = render_scene({"items": []}, crop)

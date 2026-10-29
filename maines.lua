@@ -115,7 +115,7 @@
       Font License 1.1 - see fonts/agave/LICENSE) via its Nerd Fonts "Propo" release, subset
       with pyftsubset down to the Latin + punctuation ranges this UI needs (~2.6MB per weight
       down to ~45KB - the upstream release ships thousands of icon glyphs this addon never
-      uses). Maines_MakeFontObject() falls back to Blizzard's FRIZQT__ if the file is ever
+      uses). The font loader falls back to Blizzard's FRIZQT__ if the file is ever
       missing so a corrupted install degrades instead of erroring. (Agave was later replaced
       by thicker faces per role - New Rocker, Vollkorn SC, Fira Sans, Bree Serif - see the
       font objects below.)
@@ -360,6 +360,20 @@ local maines = LibStub("AceAddon-3.0"):NewAddon("Maines","AceHook-3.0")
 local _, ns = ...
 ns.RefreshHooks = {}
 
+-- Every message Maines prints for the player goes through ns.Say: it is printed to chat exactly
+-- as before, and the latest one is also shown on the window's status line (built further
+-- down, which sets ns.OnStatus). ns.Status shows a line in the window without printing it, for
+-- replies that print as several chat lines (/mains). Only Maines' own messages pass through
+-- here - other add-ons' prints are never captured.
+function ns.Status(text)
+    ns.lastStatus = text
+    if ns.OnStatus then ns.OnStatus(text) end
+end
+function ns.Say(text)
+    print(text)
+    ns.Status(text)
+end
+
 -- Session-to-session variety for /maincolor. GetTime() (unlike the apparently-absent time())
 -- is a core WoW timer API that's about as safe a bet as they come, but this is purely cosmetic,
 -- so it's still pcall-wrapped: if that assumption is ever wrong too, the failure is swallowed
@@ -455,32 +469,44 @@ end
 -- to Latin + Latin-1 + common punctuation (the display face to ASCII only), 20-37KB each:
 --   New Rocker      - the window/help titles (a heavy, flared fantasy display face)
 --   Vollkorn SC     - section headings (sturdy engraved small caps)
---   Fira Sans       - labels (SemiBold) and body/help text (Medium): thick, open, readable small
+--   Fira Sans       - labels, body and help text (SemiBold: the Medium weight read thin in game)
 --   Bree Serif      - buttons and tabs (a chunky, friendly slab)
+-- Sizes are a comfortable medium: body 14, small 12, labels 15, buttons 14, headings 19. The tab
+-- labels keep their own 13 so they still fit under the tab icons.
 -- Falls back to Blizzard's own FRIZQT__ if a font file is ever missing for some reason (a
 -- corrupt install, a manual file deletion) so the UI degrades instead of erroring.
-local FONT_DIR = "Interface\\AddOns\\Maines\\fonts\\"
-local FONT_DISPLAY = FONT_DIR .. "newrocker\\NewRocker-Regular.ttf"
-local FONT_HEADING = FONT_DIR .. "vollkornsc\\VollkornSC-Bold.ttf"
-local FONT_LABEL = FONT_DIR .. "firasans\\FiraSans-SemiBold.ttf"
-local FONT_BODY = FONT_DIR .. "firasans\\FiraSans-Medium.ttf"
-local FONT_BUTTON = FONT_DIR .. "breeserif\\BreeSerif-Regular.ttf"
+local Maines_Font_Display, Maines_Font_Heading, Maines_Font_Header, Maines_Font_Body
+local Maines_Font_BodySmall, Maines_Font_Button, Maines_Font_Tab
+-- (do ... end: the main chunk is close to Lua's 200-locals limit.)
+do
+    local FONT_DIR = "Interface\\AddOns\\Maines\\fonts\\"
+    local FONT_DISPLAY = FONT_DIR .. "newrocker\\NewRocker-Regular.ttf"
+    local FONT_HEADING = FONT_DIR .. "vollkornsc\\VollkornSC-Bold.ttf"
+    local FONT_LABEL = FONT_DIR .. "firasans\\FiraSans-SemiBold.ttf"
+    local FONT_BUTTON = FONT_DIR .. "breeserif\\BreeSerif-Regular.ttf"
 
-local function Maines_MakeFontObject(name, path, size, flags)
-    local font = CreateFont(name)
-    if not font:SetFont(path, size, flags) then
-        font:SetFont("Fonts\\FRIZQT__.TTF", size, flags)
+    local function make(name, path, size)
+        local font = CreateFont(name)
+        if not font:SetFont(path, size, "") then
+            font:SetFont("Fonts\\FRIZQT__.TTF", size, "")
+        end
+        return font
     end
-    return font
+
+    ns.TitleFont = make("Maines_Font_Title", FONT_DISPLAY, 26)
+    Maines_Font_Display = make("Maines_Font_Display", FONT_DISPLAY, 32)
+    Maines_Font_Heading = make("Maines_Font_Heading", FONT_HEADING, 19)
+    Maines_Font_Header = make("Maines_Font_Header", FONT_LABEL, 15)
+    Maines_Font_Body = make("Maines_Font_Body", FONT_LABEL, 14)
+    Maines_Font_BodySmall = make("Maines_Font_BodySmall", FONT_LABEL, 12)
+    Maines_Font_Button = make("Maines_Font_Button", FONT_BUTTON, 14)
+    Maines_Font_Tab = make("Maines_Font_Tab", FONT_BUTTON, 13)
 end
 
-local Maines_Font_Title = Maines_MakeFontObject("Maines_Font_Title", FONT_DISPLAY, 24, "")
-local Maines_Font_Display = Maines_MakeFontObject("Maines_Font_Display", FONT_DISPLAY, 30, "")
-local Maines_Font_Heading = Maines_MakeFontObject("Maines_Font_Heading", FONT_HEADING, 17, "")
-local Maines_Font_Header = Maines_MakeFontObject("Maines_Font_Header", FONT_LABEL, 13, "")
-local Maines_Font_Body = Maines_MakeFontObject("Maines_Font_Body", FONT_BODY, 12, "")
-local Maines_Font_BodySmall = Maines_MakeFontObject("Maines_Font_BodySmall", FONT_BODY, 10, "")
-local Maines_Font_Button = Maines_MakeFontObject("Maines_Font_Button", FONT_BUTTON, 12, "")
+-- The spacing scale every page lays out with (UI units): xs 4, s 8, m 12, l 16, xl 24.
+-- Outer margins from the panel edges are l; gaps between a label and its control s; between
+-- rows of controls m; before a new heading or block xl. Buttons pad their text by l on each side.
+local SP = {xs = 4, s = 8, m = 12, l = 16, xl = 24}
 
 -- A single warm brass/walnut value ramp used for every panel in the UI, light to dark, so
 -- nothing jumps between near-white and near-black the way the first pass did. Ink colors are
@@ -680,7 +706,7 @@ local function Maines_ApplyPaletteColor(r, g, b, hex, label, quiet)
         end
     end
     if hex and label and not quiet then
-        print(("|cFF00FF00Maines|r: painted #%s from \"%s\""):format(hex, label))
+        ns.Say(("|cFF00FF00Maines|r: painted #%s from \"%s\""):format(hex, label))
     end
 end
 
@@ -905,42 +931,70 @@ end
 -- internals. Auto-sizes to fit its own text (plus padding) so it can never clip or overflow
 -- regardless of what the font's actual rendered width turns out to be - `width` is a MINIMUM,
 -- not a fixed size.
--- Each button is the brass/palette color itself, with a soft top-light/bottom-shade bevel
--- gradient over it. States change how bright the face is - resting, hover (lifted), pressed
--- (shaded) - and "selected" (this UI uses Disable() to mark the current tab/bracket/mode) sinks
--- the button into a dark walnut face with a full-color rim and an inverted bevel, so it reads as
--- pushed in. Text color is picked from the face's brightness, so it stays readable for every
+-- Each button is the brass/palette colour itself, drawn in layers that all follow that colour:
+-- a face gradient (darker at the bottom, lighter at the top), a soft gloss over the upper half,
+-- a thin bright rim along the top and sides, a darker bottom edge, and a dark outer edge. States:
+--   rest      the plain face
+--   hover     lifted: brighter face, stronger gloss and rim
+--   pressed   shaded, with an inner shadow along the top and the label nudged 1 down
+--   selected  this UI uses Disable() to mark the current tab/bracket/mode: sunk into a dark
+--             walnut face with a full-colour edge, an inverted gradient and the inner shadow
+--   unavailable  btn:SetUnavailable(true) - greyed (most of the colour gone, soft label, no
+--             hover); still clickable, so the click can say why it can't do anything yet
+-- The label colour is picked from the face's brightness, so it stays readable for every
 -- /maincolor palette, including the very light ones.
-local BUTTON_BORDER_SHADE = 0.42
-local STATE_REST, STATE_HOVER, STATE_DOWN, STATE_SELECTED = 1.0, 1.18, 0.78, "selected"
+local BUTTON_BORDER_SHADE = 0.38
+local STATE_REST, STATE_HOVER, STATE_DOWN, STATE_SELECTED = 1.0, 1.14, 0.84, "selected"
 
 local function Maines_PaintButton(btn, state)
     local c = btn.baseColor
     if not c then return end
+    local selected = state == STATE_SELECTED
+    local greyed = btn.unavailable and not selected
+    if greyed then state = STATE_REST end
     local r, g, b
-    if state == STATE_SELECTED then
+    if selected then
         r = PLATE_BG[1] + (c[1] - PLATE_BG[1]) * 0.30
         g = PLATE_BG[2] + (c[2] - PLATE_BG[2]) * 0.30
         b = PLATE_BG[3] + (c[3] - PLATE_BG[3]) * 0.30
         btn:SetBackdropBorderColor(c[1], c[2], c[3], 1)
     else
-        r, g, b = math.min(1, c[1] * state), math.min(1, c[2] * state), math.min(1, c[3] * state)
-        btn:SetBackdropBorderColor(c[1] * BUTTON_BORDER_SHADE, c[2] * BUTTON_BORDER_SHADE, c[3] * BUTTON_BORDER_SHADE, 1)
+        if greyed then
+            local l = Maines_Luminance(c[1], c[2], c[3])
+            r, g, b = (c[1] * 0.3 + l * 0.7) * 0.82, (c[2] * 0.3 + l * 0.7) * 0.82, (c[3] * 0.3 + l * 0.7) * 0.82
+        else
+            r, g, b = math.min(1, c[1] * state), math.min(1, c[2] * state), math.min(1, c[3] * state)
+        end
+        btn:SetBackdropBorderColor(r * BUTTON_BORDER_SHADE, g * BUTTON_BORDER_SHADE, b * BUTTON_BORDER_SHADE, 1)
     end
     btn:SetBackdropColor(r, g, b, 1)
-    if btn.bevel then
-        if state == STATE_SELECTED then
-            btn.bevel:SetGradient("VERTICAL", CreateColor(1, 1, 1, 0.06), CreateColor(0, 0, 0, 0.30))
-        else
-            btn.bevel:SetGradient("VERTICAL", CreateColor(0, 0, 0, 0.22), CreateColor(1, 1, 1, 0.24))
-        end
+    if btn.face then
+        local lo, hi = 0.80, 1.14
+        if selected then lo, hi = 1.10, 0.78 end
+        btn.face:SetGradient("VERTICAL", CreateColor(r * lo, g * lo, b * lo, 1),
+            CreateColor(math.min(1, r * hi + 0.03), math.min(1, g * hi + 0.03), math.min(1, b * hi + 0.03), 1))
+        local gloss = selected and 0.04 or greyed and 0.06 or state == STATE_HOVER and 0.22 or state == STATE_DOWN and 0.06 or 0.15
+        btn.gloss:SetGradient("VERTICAL", CreateColor(1, 0.97, 0.88, 0), CreateColor(1, 0.97, 0.88, gloss))
+        local rim = selected and 0.10 or greyed and 0.18 or state == STATE_HOVER and 0.60 or state == STATE_DOWN and 0.22 or 0.42
+        btn.rimTop:SetAlpha(rim)
+        btn.rimLeft:SetAlpha(rim * 0.45)
+        btn.rimRight:SetAlpha(rim * 0.45)
+        btn.rimBottom:SetAlpha((selected or state == STATE_DOWN) and 0.10 or 0.38)
+        if selected or state == STATE_DOWN then btn.inner:Show() else btn.inner:Hide() end
     end
     if btn.text then
-        if Maines_Luminance(r, g, b) > 0.55 then
-            btn.text:SetTextColor(INK[1], INK[2], INK[3])
+        local tc
+        if greyed then
+            tc = Maines_Luminance(r, g, b) > 0.55 and INK_SOFT or PLATE_TEXT_SOFT
+        elseif Maines_Luminance(r, g, b) > 0.55 then
+            tc = INK
         else
-            btn.text:SetTextColor(PLATE_TEXT[1], PLATE_TEXT[2], PLATE_TEXT[3])
+            tc = PLATE_TEXT
         end
+        btn.text:SetTextColor(tc[1], tc[2], tc[3])
+        for _, mark in ipairs(btn.marks or {}) do mark:SetVertexColor(tc[1], tc[2], tc[3]) end
+        btn.text:ClearAllPoints()
+        btn.text:SetPoint("CENTER", 0, (selected or state == STATE_DOWN) and -1 or 0)
     end
 end
 
@@ -961,23 +1015,65 @@ local function Maines_MakeButton(parent, width, height, text)
     fs:SetFontObject(Maines_Font_Button)
     fs:SetText(text or "")
     fs:SetPoint("CENTER")
+    fs:SetJustifyH("CENTER")
+    fs:SetJustifyV("MIDDLE")
     fs:SetTextColor(PLATE_TEXT[1], PLATE_TEXT[2], PLATE_TEXT[3])
+    fs:SetShadowColor(0, 0, 0, 0.45)
+    fs:SetShadowOffset(0, -1)
     btn.text = fs
 
-    local bevel = btn:CreateTexture(nil, "ARTWORK")
-    bevel:SetPoint("TOPLEFT", 1, -1)
-    bevel:SetPoint("BOTTOMRIGHT", -1, 1)
-    bevel:SetTexture("Interface\\Buttons\\WHITE8X8")
-    btn.bevel = bevel
+    -- the layers, inside the 1px outer edge
+    local function layer(sub)
+        local t = btn:CreateTexture(nil, "ARTWORK", nil, sub)
+        t:SetTexture("Interface\\Buttons\\WHITE8X8")
+        return t
+    end
+    local face = layer(0)
+    face:SetPoint("TOPLEFT", 1, -1)
+    face:SetPoint("BOTTOMRIGHT", -1, 1)
+    btn.face = face
+    local gloss = layer(1)
+    gloss:SetPoint("TOPLEFT", 1, -1)
+    gloss:SetPoint("RIGHT", -1, 0)
+    gloss:SetPoint("BOTTOM", btn, "CENTER")
+    btn.gloss = gloss
+    local inner = layer(2)
+    inner:SetPoint("TOPLEFT", 1, -1)
+    inner:SetPoint("TOPRIGHT", -1, -1)
+    inner:SetHeight(7)
+    inner:SetGradient("VERTICAL", CreateColor(0, 0, 0, 0), CreateColor(0, 0, 0, 0.38))
+    btn.inner = inner
+    local function rim(r, g, b)
+        local t = layer(3)
+        t:SetVertexColor(r, g, b)
+        return t
+    end
+    btn.rimTop = rim(1, 0.95, 0.82)
+    btn.rimTop:SetPoint("TOPLEFT", 1, -1)
+    btn.rimTop:SetPoint("TOPRIGHT", -1, -1)
+    btn.rimTop:SetHeight(1)
+    btn.rimLeft = rim(1, 0.95, 0.82)
+    btn.rimLeft:SetPoint("TOPLEFT", 1, -2)
+    btn.rimLeft:SetPoint("BOTTOMLEFT", 1, 2)
+    btn.rimLeft:SetWidth(1)
+    btn.rimRight = rim(1, 0.95, 0.82)
+    btn.rimRight:SetPoint("TOPRIGHT", -1, -2)
+    btn.rimRight:SetPoint("BOTTOMRIGHT", -1, 2)
+    btn.rimRight:SetWidth(1)
+    btn.rimBottom = rim(0.10, 0.05, 0.01)
+    btn.rimBottom:SetPoint("BOTTOMLEFT", 1, 1)
+    btn.rimBottom:SetPoint("BOTTOMRIGHT", -1, 1)
+    btn.rimBottom:SetHeight(1)
 
-    local neededWidth = fs:GetStringWidth() + 26
+    local neededWidth = fs:GetStringWidth() + 2 * SP.l
     btn:SetSize(math.max(width or 0, neededWidth), height)
 
     Maines_SetButtonBaseColor(btn, ACCENT[1], ACCENT[2], ACCENT[3])
     Maines_RegisterButton(btn)
 
+    local function live(self) return self:IsEnabled() and not self.unavailable end
     btn:SetScript("OnEnter", function(self)
-        if self:IsEnabled() then Maines_PaintButton(self, STATE_HOVER) end
+        if live(self) then Maines_PaintButton(self, STATE_HOVER) end
         if self.tooltip then
             GameTooltip:SetOwner(self, "ANCHOR_TOP")
             GameTooltip:SetText(self.tooltip, 1, 1, 1, 1, true)
@@ -985,22 +1081,28 @@ local function Maines_MakeButton(parent, width, height, text)
         end
     end)
     btn:SetScript("OnLeave", function(self)
-        if self:IsEnabled() then Maines_PaintButton(self, STATE_REST) end
+        if live(self) then Maines_PaintButton(self, STATE_REST) end
         if self.tooltip then GameTooltip:Hide() end
     end)
     btn:SetScript("OnMouseDown", function(self)
-        if self:IsEnabled() then Maines_PaintButton(self, STATE_DOWN) end
+        if live(self) then Maines_PaintButton(self, STATE_DOWN) end
     end)
     btn:SetScript("OnMouseUp", function(self)
-        if self:IsEnabled() then Maines_PaintButton(self, STATE_HOVER) end
+        if live(self) then Maines_PaintButton(self, STATE_HOVER) end
     end)
 
     function btn:SetText(t)
         fs:SetText(t)
-        local w = fs:GetStringWidth() + 26
+        local w = fs:GetStringWidth() + 2 * SP.l
         if w > self:GetWidth() then self:SetWidth(w) end
     end
     function btn:GetText() return fs:GetText() end
+    function btn:SetUnavailable(flag)
+        flag = flag and true or false
+        if self.unavailable == flag then return end
+        self.unavailable = flag
+        Maines_PaintButton(self, self:IsEnabled() and STATE_REST or STATE_SELECTED)
+    end
 
     -- Disable() doubles as "this is the selected one" throughout this UI, so it paints the
     -- strong selected face rather than a greyed-out one.
@@ -1014,6 +1116,34 @@ local function Maines_MakeButton(parent, width, height, text)
         Maines_PaintButton(self, STATE_REST)
     end
 
+    return btn
+end
+
+-- Maines' own close button for its windows: a small square plate in the same style as every
+-- other button (brass, following /maincolor), with an embossed x drawn from two crossed bars.
+-- Same click behaviour as WoW's close button: it hides `target` (the windows' own Escape
+-- handling is unchanged).
+local function Maines_MakeCloseButton(parent, target, onClick)
+    local btn = Maines_MakeButton(parent, 26, 26, "")
+    btn:SetSize(26, 26)
+    btn.marks = {}
+    for _, angle in ipairs({45, -45}) do
+        local shade = btn:CreateTexture(nil, "OVERLAY", nil, 1)
+        shade:SetTexture("Interface\\Buttons\\WHITE8X8")
+        shade:SetVertexColor(0.08, 0.04, 0.01, 0.55)
+        shade:SetSize(14, 3)
+        shade:SetPoint("CENTER", 0, -1)
+        shade:SetRotation(math.rad(angle))
+        local bar = btn:CreateTexture(nil, "OVERLAY", nil, 2)
+        bar:SetTexture("Interface\\Buttons\\WHITE8X8")
+        bar:SetSize(14, 3)
+        bar:SetPoint("CENTER", 0, 0)
+        bar:SetRotation(math.rad(angle))
+        btn.marks[#btn.marks + 1] = bar
+    end
+    Maines_PaintButton(btn, STATE_REST)
+    btn.tooltip = "Close"
+    btn:SetScript("OnClick", onClick or function() target:Hide() end)
     return btn
 end
 
@@ -1079,7 +1209,7 @@ local function Maines_MakeNavButton(parent, width, height, text, iconPath)
     end
 
     local fs = btn:CreateFontString(nil, "OVERLAY")
-    fs:SetFontObject(Maines_Font_Button)
+    fs:SetFontObject(Maines_Font_Tab)
     fs:SetPoint("BOTTOM", 0, 3)
     fs:SetText(text)
     btn.text = fs
@@ -1128,7 +1258,7 @@ local function Maines_MakeHeading(parent, text, x, y, width)
     local rule = parent:CreateTexture(nil, "ARTWORK")
     rule:SetTexture("Interface\\Buttons\\WHITE8X8")
     rule:SetHeight(1)
-    rule:SetPoint("TOPLEFT", fs, "BOTTOMLEFT", 0, -4)
+    rule:SetPoint("TOPLEFT", fs, "BOTTOMLEFT", 0, -SP.xs)
     rule:SetWidth(width / 2)
     local ruleR = parent:CreateTexture(nil, "ARTWORK")
     ruleR:SetTexture("Interface\\Buttons\\WHITE8X8")
@@ -1142,15 +1272,15 @@ local function Maines_MakeHeading(parent, text, x, y, width)
     end
     paintRule()
     table.insert(Maines_Textures, {repaint = paintRule})
-    return fs, y - fs:GetStringHeight() - 12
+    return fs, y - fs:GetStringHeight() - SP.xs - SP.l
 end
 
 -- Slash command handlers:
 SlashCmdList["MAINMUSIC"] = function() _G["PlayedMusic_DB"] = "noplayed" end
-SlashCmdList["MAINSTAMP"] = function() print("|cFF00FF00Maines|r: The |cFFFFE4B5GLYPH|r Stamp") end
+SlashCmdList["MAINSTAMP"] = function() ns.Say("|cFF00FF00Maines|r: The |cFFFFE4B5GLYPH|r Stamp") end
 SlashCmdList["MAINCOLOR"] = function()
     if #Maines_Textures == 0 then
-        print("|cFF00FF00Maines|r: no textures loaded yet — open /maines once first")
+        ns.Say("|cFF00FF00Maines|r: no textures loaded yet — open /maines once first")
         return
     end
     local palette = Color_Palettes[math.random(#Color_Palettes)]
@@ -1161,7 +1291,7 @@ end
 SlashCmdList["MAINMAP"] = function()
     local icon = LibStub("LibDBIcon-1.0", true)
     if not (icon and icon:IsRegistered("Maines")) then
-        print("|cFF00FF00Maines|r: minimap icon isn't available")
+        ns.Say("|cFF00FF00Maines|r: minimap icon isn't available")
         return
     end
     Maines_DB = Maines_DB or {}
@@ -1169,10 +1299,10 @@ SlashCmdList["MAINMAP"] = function()
     Maines_DB.minimap.hide = not Maines_DB.minimap.hide
     if Maines_DB.minimap.hide then
         icon:Hide("Maines")
-        print("|cFF00FF00Maines|r: minimap icon hidden")
+        ns.Say("|cFF00FF00Maines|r: minimap icon hidden")
     else
         icon:Show("Maines")
-        print("|cFF00FF00Maines|r: minimap icon shown")
+        ns.Say("|cFF00FF00Maines|r: minimap icon shown")
     end
 end
 SlashCmdList["BRACKET"] = function()
@@ -1180,6 +1310,7 @@ SlashCmdList["BRACKET"] = function()
     for k,v in pairs(Bracket_Types) do
         print(i.." = "..(v[1].." Maines "..v[2]).." - "..v[4]); i = i+1
     end
+    ns.Status("|cFF00FF00Maines|r: the " .. (i - 1) .. " bracket types are listed in chat")
 end
 SlashCmdList["MAINES"] = function()
     Maines_Window:Show()
@@ -1202,6 +1333,18 @@ local function Maines_ToggleMainWindow()
     else
         SlashCmdList["MAINES"]()
     end
+end
+-- What /mains and /main print: four chat lines as always, and the same facts on one line in
+-- the window's status line.
+function ns.PrintMainSettings(name, typ, left, right)
+    print("|cFFD2C7B7", "Main Name |r", "|cFFFFE4B5", name, "|r")
+    if typ and left and right then
+        print("|cFFC1B7A8", "Bracket Type", "|r", typ, "|r")
+        print("|cFFB8AEA0", "Left Bracket", "|r", left, "|r")
+        print("|cFFA9A193", "Right Bracket", "|r", right, "|r")
+    end
+    ns.Status("|cFFD2C7B7Main Name|r |cFFFFE4B5" .. name .. "|r   |cFFC1B7A8Bracket Type|r " .. (typ or "")
+        .. "   |cFFB8AEA0Left|r " .. (left or "") .. "   |cFFA9A193Right|r " .. (right or ""))
 end
 SlashCmdList["MAINS"] = function(msg)
     local args = {}
@@ -1226,12 +1369,11 @@ SlashCmdList["MAINS"] = function(msg)
         _G["Maines_Bracket_Left_DB"] = left
         _G["Maines_Bracket_Right_DB"] = right
         _G["Maines_Bracket_Option_DB"] = typ
-        print("|cFFD2C7B7", "Main Name |r", "|cFFFFE4B5", name, "|r")
-        print("|cFFC1B7A8", "Bracket Type", "|r", typ, "|r")
-        print("|cFFB8AEA0", "Left Bracket", "|r", left, "|r")
-        print("|cFFA9A193", "Right Bracket", "|r", right, "|r")
+        ns.PrintMainSettings(name, typ, left, right)
+        -- typed while the window is open: its name box, buttons and preview follow
+        if Maines_RefreshWindow and Maines_Window and Maines_Window:IsShown() then Maines_RefreshWindow() end
     else
-        print("Usage: /mains <mainname> <bracket symbol> [right bracket symbol]")
+        ns.Say("Usage: /mains <mainname> <bracket symbol> [right bracket symbol]")
         print("Example: /mains hello (        — will output (hello) in chat channels")
         print("Example: /mains hello *        — custom symbol for both sides: *hello*")
         print("Example: /mains hello << >>    — independent left/right sequences: <<hello>>")
@@ -1242,12 +1384,7 @@ SlashCmdList["MAIN"] = function()
     local left = _G["Maines_Bracket_Left_DB"] or ""
     local right = _G["Maines_Bracket_Right_DB"] or ""
     local typ = _G["Maines_Bracket_Option_DB"] or ""
-    print("|cFFD2C7B7", "Main Name |r", "|cFFFFE4B5", name, "|r")
-    if typ and left and right then
-        print("|cFFC1B7A8", "Bracket Type", "|r", typ, "|r")
-        print("|cFFB8AEA0", "Left Bracket", "|r", left, "|r")
-        print("|cFFA9A193", "Right Bracket", "|r", right, "|r")
-    end
+    ns.PrintMainSettings(name, typ, left, right)
 end
 local function Maines_GetChatFilter()
     _G["Maines_Chat_Options_DB"] = _G["Maines_Chat_Options_DB"] or {}
@@ -1262,7 +1399,7 @@ local function Maines_ResetChatFilterIfNotSticky()
     if Maines_ChatFilterSticky_DB then return end
     local filter = Maines_GetChatFilter()
     if #filter > 0 then
-        print("|cFF00FF00Maines|r: chat filter ("..table.concat(filter, ", ")..
+        ns.Say("|cFF00FF00Maines|r: chat filter ("..table.concat(filter, ", ")..
             ") reset on load - tagging all channels again. Run |cFFFFE4B5/mainchat sticky|r to keep a filter across reloads.")
         wipe(filter)
     end
@@ -1274,19 +1411,19 @@ SlashCmdList["MAINCHAT"] = function(msg)
 
     if msg == "" then
         wipe(filter)
-        print("|cFF00FF00Maines|r: chat filter cleared — tagging all channels (including Communities)")
+        ns.Say("|cFF00FF00Maines|r: chat filter cleared — tagging all channels (including Communities)")
         return
     end
 
     if msg:lower() == "list" then
         local mode = Maines_ChatFilterMode_DB or "include"
         if #filter == 0 then
-            print("|cFF00FF00Maines|r: no filter set — tagging all channels")
+            ns.Say("|cFF00FF00Maines|r: no filter set — tagging all channels")
         elseif mode == "exclude" then
-            print("|cFF00FF00Maines|r: tagging every channel EXCEPT: "..table.concat(filter, ", ")..
+            ns.Say("|cFF00FF00Maines|r: tagging every channel EXCEPT: "..table.concat(filter, ", ")..
                 (Maines_ChatFilterSticky_DB and " |cFF888888(sticky)|r" or ""))
         else
-            print("|cFF00FF00Maines|r: tagging ONLY: "..table.concat(filter, ", ")..
+            ns.Say("|cFF00FF00Maines|r: tagging ONLY: "..table.concat(filter, ", ")..
                 (Maines_ChatFilterSticky_DB and " |cFF888888(sticky)|r" or ""))
         end
         return
@@ -1296,7 +1433,7 @@ SlashCmdList["MAINCHAT"] = function(msg)
     -- and the fix for any confusion about which way this goes) or a blacklist (tag everything
     -- EXCEPT these - handy for "just don't tag whispers" without listing every other channel).
     if msg:lower():match("^mode%s*$") then
-        print("|cFF00FF00Maines|r: filter mode is |cFFFFE4B5"..(Maines_ChatFilterMode_DB or "include").."|r "..
+        ns.Say("|cFF00FF00Maines|r: filter mode is |cFFFFE4B5"..(Maines_ChatFilterMode_DB or "include").."|r "..
             "(/mainchat mode include | /mainchat mode exclude)")
         return
     end
@@ -1305,12 +1442,12 @@ SlashCmdList["MAINCHAT"] = function(msg)
         if modeSet == "include" or modeSet == "exclude" then
             Maines_ChatFilterMode_DB = modeSet
             if modeSet == "include" then
-                print("|cFF00FF00Maines|r: filter mode set to |cFFFFE4B5include|r - tagging ONLY the listed channels")
+                ns.Say("|cFF00FF00Maines|r: filter mode set to |cFFFFE4B5include|r - tagging ONLY the listed channels")
             else
-                print("|cFF00FF00Maines|r: filter mode set to |cFFFFE4B5exclude|r - tagging every channel EXCEPT the listed ones")
+                ns.Say("|cFF00FF00Maines|r: filter mode set to |cFFFFE4B5exclude|r - tagging every channel EXCEPT the listed ones")
             end
         else
-            print("|cFF00FF00Maines|r: unknown mode \""..modeSet.."\" - use \"include\" or \"exclude\"")
+            ns.Say("|cFF00FF00Maines|r: unknown mode \""..modeSet.."\" - use \"include\" or \"exclude\"")
         end
         return
     end
@@ -1321,9 +1458,9 @@ SlashCmdList["MAINCHAT"] = function(msg)
     if msg:lower() == "sticky" then
         Maines_ChatFilterSticky_DB = not Maines_ChatFilterSticky_DB
         if Maines_ChatFilterSticky_DB then
-            print("|cFF00FF00Maines|r: filter is now |cFFFFE4B5sticky|r - it'll survive reloads until you change it")
+            ns.Say("|cFF00FF00Maines|r: filter is now |cFFFFE4B5sticky|r - it'll survive reloads until you change it")
         else
-            print("|cFF00FF00Maines|r: filter is |cFFFFE4B5no longer sticky|r - it'll reset to \"tag everything\" next reload")
+            ns.Say("|cFF00FF00Maines|r: filter is |cFFFFE4B5no longer sticky|r - it'll reset to \"tag everything\" next reload")
         end
         return
     end
@@ -1353,7 +1490,7 @@ SlashCmdList["MAINCHAT"] = function(msg)
     end
 
     if #tokens == 0 then
-        print("|cFF00FF00Maines|r: nothing to do - run /mainchat with no arguments to clear the filter")
+        ns.Say("|cFF00FF00Maines|r: nothing to do - run /mainchat with no arguments to clear the filter")
         return
     end
 
@@ -1363,8 +1500,8 @@ SlashCmdList["MAINCHAT"] = function(msg)
     end
 
     if opTokens > 0 and plainTokens > 0 then
-        print("|cFF00FF00Maines|r: can't mix +CHANNEL/-CHANNEL with plain channel names in one command")
-        print("|cFF00FF00Maines|r: use \"/mainchat SAY,GUILD\" to set the whole list, or \"/mainchat +SAY,-GUILD\" to edit the existing one")
+        ns.Say("|cFF00FF00Maines|r: can't mix +CHANNEL/-CHANNEL with plain channel names in one command")
+        ns.Say("|cFF00FF00Maines|r: use \"/mainchat SAY,GUILD\" to set the whole list, or \"/mainchat +SAY,-GUILD\" to edit the existing one")
         return
     end
 
@@ -1385,11 +1522,11 @@ SlashCmdList["MAINCHAT"] = function(msg)
                 end
             end
         end
-        if #added > 0 then print("|cFF00FF00Maines|r: added "..table.concat(added, ", ").." to filter") end
-        if #removed > 0 then print("|cFF00FF00Maines|r: removed "..table.concat(removed, ", ").." from filter") end
-        if #bad > 0 then print("|cFF00FF00Maines|r: ignored invalid entries: "..table.concat(bad, ", ")) end
+        if #added > 0 then ns.Say("|cFF00FF00Maines|r: added "..table.concat(added, ", ").." to filter") end
+        if #removed > 0 then ns.Say("|cFF00FF00Maines|r: removed "..table.concat(removed, ", ").." from filter") end
+        if #bad > 0 then ns.Say("|cFF00FF00Maines|r: ignored invalid entries: "..table.concat(bad, ", ")) end
         if #added == 0 and #removed == 0 and #bad == 0 then
-            print("|cFF00FF00Maines|r: nothing changed")
+            ns.Say("|cFF00FF00Maines|r: nothing changed")
         end
         return
     end
@@ -1398,11 +1535,11 @@ SlashCmdList["MAINCHAT"] = function(msg)
     for _, token in ipairs(tokens) do table.insert(filter, token) end
     local mode = Maines_ChatFilterMode_DB or "include"
     if #filter == 0 then
-        print("|cFF00FF00Maines|r: no valid channel names found - filter left empty, tagging all channels")
+        ns.Say("|cFF00FF00Maines|r: no valid channel names found - filter left empty, tagging all channels")
     elseif mode == "exclude" then
-        print("|cFF00FF00Maines|r: tagging every channel EXCEPT: "..table.concat(filter, ", "))
+        ns.Say("|cFF00FF00Maines|r: tagging every channel EXCEPT: "..table.concat(filter, ", "))
     else
-        print("|cFF00FF00Maines|r: tagging ONLY: "..table.concat(filter, ", "))
+        ns.Say("|cFF00FF00Maines|r: tagging ONLY: "..table.concat(filter, ", "))
     end
 end
 
@@ -1514,14 +1651,14 @@ end
 SLASH_MAINHIDE1 = "/mainhide"
 SlashCmdList["MAINHIDE"] = function()
     Maines_HideOnMain_DB = true
-    print("|cFF00FF00Maines|r: when playing your main ("..tostring(_G["Maines_Name_DB"] or "not set")..
+    ns.Say("|cFF00FF00Maines|r: when playing your main ("..tostring(_G["Maines_Name_DB"] or "not set")..
         "), the tag will |cFFFFE4B5hide|r (switch back with /mainshow)")
 end
 
 SLASH_MAINSHOW1 = "/mainshow"
 SlashCmdList["MAINSHOW"] = function()
     Maines_HideOnMain_DB = false
-    print("|cFF00FF00Maines|r: when playing your main ("..tostring(_G["Maines_Name_DB"] or "not set")..
+    ns.Say("|cFF00FF00Maines|r: when playing your main ("..tostring(_G["Maines_Name_DB"] or "not set")..
         "), the tag will |cFFFFE4B5still show|r (switch back with /mainhide)")
 end
 
@@ -1677,6 +1814,7 @@ local function Maines_PrintHelpToChat()
     end
 
     print("|cFFFFD100Full write-up with tables and more detail lives in the addon's README.|r")
+    ns.Status("|cFF00FF00Maines|r: the command reference is printed in chat")
 end
 
 -- /mainhelp window: a movable, scrollable reference panel built from the same Help_Sections
@@ -1686,10 +1824,10 @@ end
 -- chained top-to-bottom with GetStringHeight(), which is reliable even before the frame has
 -- ever been shown - unlike GetTop()/GetBottom(), which can be unresolved on a frame that's
 -- never been laid out yet.
-local HELP_CONTENT_WIDTH = 430
+local HELP_CONTENT_WIDTH = 510
 
 local Help_Frame = CreateFrame("Frame", "Maines_Help_Frame", UIParent, "BackdropTemplate")
-Help_Frame:SetSize(520, 620)
+Help_Frame:SetSize(600, 700)
 Help_Frame:SetPoint("CENTER")
 Help_Frame:SetFrameStrata("DIALOG")
 Help_Frame:SetMovable(true)
@@ -1713,18 +1851,17 @@ Help_Frame.title:SetTextColor(0.20, 0.11, 0.03)
 Help_Frame.title:SetShadowColor(1, 0.94, 0.78, 0.6)
 Help_Frame.title:SetShadowOffset(0, -1)
 
-local helpClose = CreateFrame("Button", nil, Help_Frame, "UIPanelCloseButton")
-helpClose:SetPoint("TOPRIGHT", -4, -4)
-helpClose:SetScript("OnClick", function() Help_Frame:Hide() end)
+local helpClose = Maines_MakeCloseButton(Help_Frame, Help_Frame)
+helpClose:SetPoint("TOPRIGHT", -SP.m, -SP.m)
 
 local helpPanel = CreateFrame("Frame", nil, Help_Frame, "BackdropTemplate")
-helpPanel:SetPoint("TOPLEFT", 26, -78)
+helpPanel:SetPoint("TOPLEFT", 26, -80)
 helpPanel:SetPoint("BOTTOMRIGHT", -26, 22)
 Maines_MakeFlatBackdrop(helpPanel, CONTENT_BG, BORDER_DARK, 2)
 
 local helpScroll = CreateFrame("ScrollFrame", "Maines_Help_ScrollFrame", helpPanel, "UIPanelScrollFrameTemplate")
-helpScroll:SetPoint("TOPLEFT", 10, -10)
-helpScroll:SetPoint("BOTTOMRIGHT", -28, 10)
+helpScroll:SetPoint("TOPLEFT", SP.m, -SP.m)
+helpScroll:SetPoint("BOTTOMRIGHT", -28, SP.m)
 
 local helpContent = CreateFrame("Frame", "Maines_Help_ScrollChild", helpScroll)
 helpContent:SetWidth(HELP_CONTENT_WIDTH)
@@ -1735,17 +1872,17 @@ local function Maines_BuildHelpContent()
     if Help_Frame.built then return end
     Help_Frame.built = true
 
-    local y = -6
+    local y = -SP.s
 
     -- Was a captured mockup graphic (mainhelp_example.tga); replaced with the same worked
     -- example as plain colored text so the panel needs no art at all.
     local exampleFS = helpContent:CreateFontString(nil, "OVERLAY")
     exampleFS:SetFontObject(Maines_Font_Body)
     exampleFS:SetPoint("TOP", 0, y)
-    exampleFS:SetWidth(HELP_CONTENT_WIDTH - 12)
+    exampleFS:SetWidth(HELP_CONTENT_WIDTH - SP.l)
     exampleFS:SetJustifyH("CENTER")
     exampleFS:SetText(HEX_SOFT .. "Example tagged message:|r  " .. HEX_ACCENT .. "(Tuniveza)|r " .. HEX_TEXT .. "Hello there, guildies!|r")
-    y = y - exampleFS:GetStringHeight() - 22
+    y = y - exampleFS:GetStringHeight() - SP.xl
 
     for _, section in ipairs(Help_Sections) do
         local winColor = section.winColor or section.color
@@ -1753,18 +1890,19 @@ local function Maines_BuildHelpContent()
         local header = helpContent:CreateFontString(nil, "OVERLAY")
         header:SetFontObject(Maines_Font_Heading)
         header:SetPoint("TOP", 0, y)
-        header:SetWidth(HELP_CONTENT_WIDTH - 12)
+        header:SetWidth(HELP_CONTENT_WIDTH - SP.l)
         header:SetJustifyH("CENTER")
         header:SetText(Maines_HelpIcon(section.icon, 28) .. "  " .. section.title)
         local r, g, b = Maines_HexToRGB(winColor)
         header:SetTextColor(r, g, b)
-        y = y - header:GetStringHeight() - 10
+        y = y - header:GetStringHeight() - SP.m
 
         for _, e in ipairs(section.entries) do
             local entryFS = helpContent:CreateFontString(nil, "OVERLAY")
             entryFS:SetFontObject(Maines_Font_Body)
             entryFS:SetPoint("TOP", 0, y)
-            entryFS:SetWidth(HELP_CONTENT_WIDTH - 12)
+            entryFS:SetWidth(HELP_CONTENT_WIDTH - SP.l)
+            entryFS:SetSpacing(2)
             entryFS:SetJustifyH("CENTER")
 
             local cmdLine = e.args ~= "" and (e.cmd.." |cFF2A2118"..e.args.."|r") or e.cmd
@@ -1776,13 +1914,13 @@ local function Maines_BuildHelpContent()
             end
             entryFS:SetText(text)
 
-            y = y - entryFS:GetStringHeight() - 14
+            y = y - entryFS:GetStringHeight() - SP.l
         end
 
-        y = y - 8
+        y = y - SP.s
     end
 
-    helpContent:SetHeight(-y + 10)
+    helpContent:SetHeight(-y + SP.m)
 end
 
 SLASH_MAINHELP1 = "/mainhelp"
@@ -1903,8 +2041,12 @@ end
 -- reading text stays a fixed ink color on purpose, so recoloring never produces unreadable
 -- bright-on-bright text.
 
+-- Window size, and the status line between the pages and the footer (one table: the main
+-- chunk is near Lua's 200-locals limit). 724 tall keeps the window and its frame inside WoW's
+-- 768-unit-high screen at UI scale 1.
+local WIN = {w = 720, h = 724, status = 28}
 Maines_Window = CreateFrame("Frame", "Maines_Frame", UIParent, "BackdropTemplate")
-Maines_Window:SetSize(660, 680)
+Maines_Window:SetSize(WIN.w, WIN.h)
 Maines_Window:SetPoint("CENTER")
 Maines_Window:SetFrameStrata("DIALOG")
 Maines_Window:SetMovable(true)
@@ -2056,7 +2198,7 @@ end
 
 -- Header: a band of brushed brass across the top (Maines_DressBrassBand above), with the title
 -- engraved in the middle.
-local HEADER_HEIGHT = 60
+local HEADER_HEIGHT = 56
 local header = CreateFrame("Frame", nil, Maines_Window)
 header:SetPoint("TOPLEFT", 3, -3)
 header:SetPoint("TOPRIGHT", -3, -3)
@@ -2071,20 +2213,11 @@ do
     -- below each stroke so it reads as pressed into the brass.
     local windowTitle = header:CreateFontString(nil, "OVERLAY")
     windowTitle:SetFontObject(Maines_Font_Display)
-    windowTitle:SetPoint("TOP", header, "TOP", 0, -7)
+    windowTitle:SetPoint("CENTER", header, "CENTER", 0, 0)
     windowTitle:SetText("M A I N E S")
     windowTitle:SetTextColor(0.20, 0.11, 0.03)
     windowTitle:SetShadowColor(1, 0.94, 0.78, 0.6)
     windowTitle:SetShadowOffset(0, -1)
-
-    local windowSubtitle = header:CreateFontString(nil, "OVERLAY")
-    windowSubtitle:SetFontObject(Maines_Font_BodySmall)
-    windowSubtitle:SetPoint("TOP", windowTitle, "BOTTOM", 0, -4)
-    windowSubtitle:SetJustifyH("CENTER")
-    windowSubtitle:SetText("gnomish / goblin-engineered chat tagger")
-    windowSubtitle:SetTextColor(0.30, 0.18, 0.07)
-    windowSubtitle:SetShadowColor(1, 0.94, 0.78, 0.4)
-    windowSubtitle:SetShadowOffset(0, -1)
 
     -- Fine engraved flourishes either side of the title: a hairline fading outward, ending in a
     -- small diamond next to the lettering. Drawn, not pictures.
@@ -2113,9 +2246,8 @@ do
         end
     end
 
-    local windowClose = CreateFrame("Button", nil, header, "UIPanelCloseButton")
-    windowClose:SetPoint("TOPRIGHT", -6, -6)
-    windowClose:SetScript("OnClick", function() Maines_HideMainWindow() end)
+    local windowClose = Maines_MakeCloseButton(header, Maines_Window, function() Maines_HideMainWindow() end)
+    windowClose:SetPoint("RIGHT", -SP.l, 0)
 end
 
 -- Pages: one per functional area, as a row of tabs under the title, each with Maines' own icon.
@@ -2146,7 +2278,7 @@ Maines_Look.TonePlateGradient(tabBar, tabBarBg, 0.8, 1.2)
 
 local contentFrame = CreateFrame("Frame", nil, Maines_Window, "BackdropTemplate")
 contentFrame:SetPoint("TOPLEFT", tabBar, "BOTTOMLEFT", 0, 0)
-contentFrame:SetPoint("BOTTOMRIGHT", -3, FOOTER_HEIGHT)
+contentFrame:SetPoint("BOTTOMRIGHT", -3, FOOTER_HEIGHT + WIN.status)
 Maines_MakeFlatBackdrop(contentFrame, CONTENT_BG, BORDER_DARK, 1)
 
 local Maines_Panels, Maines_Tabs = {}, {}
@@ -2162,7 +2294,7 @@ end
 
 -- Equal-width tabs filling the row, 8px in from each side, sitting on the strip's bottom edge
 -- so the open one runs straight into the page.
-local TAB_WIDTH = math.floor((660 - 6 - 16 - TAB_GAP * (#TAB_DEFS - 1)) / #TAB_DEFS)
+local TAB_WIDTH = math.floor((WIN.w - 6 - 16 - TAB_GAP * (#TAB_DEFS - 1)) / #TAB_DEFS)
 for i, def in ipairs(TAB_DEFS) do
     local btn = Maines_MakeNavButton(tabBar, TAB_WIDTH, TAB_HEIGHT, def.label, def.icon)
     btn:SetPoint("BOTTOMLEFT", 8 + (i - 1) * (TAB_WIDTH + TAB_GAP), 0)
@@ -2170,8 +2302,8 @@ for i, def in ipairs(TAB_DEFS) do
     Maines_Tabs[def.key] = btn
 
     local panel = CreateFrame("Frame", nil, contentFrame)
-    panel:SetPoint("TOPLEFT", 16, -16)
-    panel:SetPoint("BOTTOMRIGHT", -16, 16)
+    panel:SetPoint("TOPLEFT", SP.l, -SP.l)
+    panel:SetPoint("BOTTOMRIGHT", -SP.l, SP.l)
     panel:Hide()
     Maines_Panels[def.key] = panel
 end
@@ -2197,7 +2329,7 @@ do
 
     local creditsLine1 = footerBar:CreateFontString(nil, "OVERLAY")
     creditsLine1:SetFontObject(Maines_Font_BodySmall)
-    creditsLine1:SetPoint("TOP", 0, -7)
+    creditsLine1:SetPoint("BOTTOM", footerBar, "CENTER", 0, 1)
     creditsLine1:SetJustifyH("CENTER")
     creditsLine1:SetText("Designed by Dominic Hughes / Zuniversa / Tuniveza  -  Silvermoon EU, Universe of Warcraft")
     creditsLine1:SetTextColor(PLATE_TEXT[1], PLATE_TEXT[2], PLATE_TEXT[3])
@@ -2205,7 +2337,7 @@ do
     -- Shifted right by half the stamp's width (+ gap) so stamp and text together stay centered.
     local creditsLine2 = footerBar:CreateFontString(nil, "OVERLAY")
     creditsLine2:SetFontObject(Maines_Font_BodySmall)
-    creditsLine2:SetPoint("TOP", creditsLine1, "BOTTOM", 10, -3)
+    creditsLine2:SetPoint("TOP", footerBar, "CENTER", 10, -2)
     creditsLine2:SetJustifyH("CENTER")
     creditsLine2:SetText("The GLYPH Stamp  -  Coded and Guided by Generative Assistance")
     creditsLine2:SetTextColor(PLATE_TEXT_SOFT[1], PLATE_TEXT_SOFT[2], PLATE_TEXT_SOFT[3])
@@ -2213,6 +2345,77 @@ do
     -- The stamp's mark (see Maines_MakeGlyphBadge above).
     local footerBadge = Maines_MakeGlyphBadge(footerBar, 12)
     footerBadge:SetPoint("RIGHT", creditsLine2, "LEFT", -8, 0)
+end
+
+-- Status line: a slim walnut strip just above the footer that shows the latest message Maines
+-- printed to chat (everything sent through ns.Say / ns.Status), so a click on a bracket,
+-- channel, style, badge or palette answers right where the click was. Chat still gets every
+-- message too. The green "Maines:" chat prefix is dropped here (this is Maines' own window) and
+-- the first letter capitalised; every other colour code is kept, since the chat colours were
+-- picked for a dark background like this one. A new message fades in and stays until the next;
+-- hovering a line too long to fit shows all of it.
+do
+    local bar = CreateFrame("Frame", nil, Maines_Window)
+    bar:SetPoint("BOTTOMLEFT", footerBar, "TOPLEFT", 0, 0)
+    bar:SetPoint("BOTTOMRIGHT", footerBar, "TOPRIGHT", 0, 0)
+    bar:SetHeight(WIN.status)
+    local bg = bar:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetTexture("Interface\\Buttons\\WHITE8X8")
+    Maines_Look.TonePlateGradient(bar, bg, 0.9, 1.1)
+    local shine = bar:CreateTexture(nil, "ARTWORK")
+    shine:SetTexture("Interface\\Buttons\\WHITE8X8")
+    shine:SetVertexColor(1, 0.9, 0.7, 0.10)
+    shine:SetHeight(1)
+    shine:SetPoint("TOPLEFT")
+    shine:SetPoint("TOPRIGHT")
+
+    local text = bar:CreateFontString(nil, "OVERLAY")
+    text:SetFontObject(Maines_Font_Body)
+    text:SetPoint("LEFT", SP.xl, 0)
+    text:SetPoint("RIGHT", -SP.xl, 0)
+    text:SetJustifyH("CENTER")
+    text:SetWordWrap(false)
+    text:SetMaxLines(1)
+
+    local fade = text:CreateAnimationGroup()
+    local fadeIn = fade:CreateAnimation("Alpha")
+    fadeIn:SetFromAlpha(0)
+    fadeIn:SetToAlpha(1)
+    fadeIn:SetDuration(0.3)
+    fadeIn:SetSmoothing("OUT")
+
+    local function clean(msg)
+        msg = tostring(msg or ""):gsub("^|c%x%x%x%x%x%x%x%xMaines|r:%s*", "")
+        return (msg:gsub("^(%l)", string.upper))
+    end
+    ns.OnStatus = function(msg)
+        text:SetText(clean(msg))
+        text:SetTextColor(PLATE_TEXT[1], PLATE_TEXT[2], PLATE_TEXT[3])
+        fade:Stop()
+        fade:Play()
+    end
+    if ns.lastStatus then
+        ns.OnStatus(ns.lastStatus)
+    else
+        text:SetText("Messages from Maines show up here, and in chat.")
+        text:SetTextColor(PLATE_TEXT_SOFT[1], PLATE_TEXT_SOFT[2], PLATE_TEXT_SOFT[3])
+    end
+
+    bar:EnableMouse(true)
+    bar:SetScript("OnEnter", function(self)
+        if text.IsTruncated and text:IsTruncated() then
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            GameTooltip:SetText(text:GetText(), 1, 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    bar:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    -- Dragging the strip still moves the window, like the rest of it.
+    bar:RegisterForDrag("LeftButton")
+    bar:SetScript("OnDragStart", function() Maines_Window:StartMoving() end)
+    bar:SetScript("OnDragStop", function() Maines_Window:StopMovingOrSizing() end)
+    ns.StatusBar, ns.StatusText = bar, text
 end
 
 -- Everything the feature files (phrases.lua, animate.lua, badges.lua) need to build their own
@@ -2229,7 +2432,7 @@ ns.ActivePalette = function() return Maines_ActivePalette end
 ns.TonePlateBackdrop = Maines_Look.TonePlateBackdrop
 ns.TabBar, ns.FooterBar = tabBar, footerBar
 ns.Fonts = {
-    Title = Maines_Font_Title, Header = Maines_Font_Header, Body = Maines_Font_Body,
+    Title = ns.TitleFont, Header = Maines_Font_Header, Body = Maines_Font_Body,
     BodySmall = Maines_Font_BodySmall, Button = Maines_Font_Button,
 }
 ns.Colors = {
@@ -2237,450 +2440,456 @@ ns.Colors = {
     BORDER_DARK = BORDER_DARK, HEX_TEXT = HEX_TEXT, HEX_SOFT = HEX_SOFT, HEX_ACCENT = HEX_ACCENT,
 }
 ns.Bracket_Types = Bracket_Types
-ns.PANEL_WIDTH = 660 - 6 - 32
+ns.PANEL_WIDTH = WIN.w - 6 - 2 * SP.l
+ns.SP = SP
+ns.READ_W = 600 -- intro paragraphs: narrower than the page so they wrap into even lines
+-- Narrows a wrapped paragraph (at most maxW wide) so its lines come out about the same length,
+-- instead of a full line and a lone word or two under it.
+function ns.BalanceText(fs, maxW)
+    fs:SetWidth(maxW)
+    local full = fs.GetUnboundedStringWidth and fs:GetUnboundedStringWidth() or 0
+    if not full or full <= maxW then return end
+    local lines = math.ceil(full / maxW)
+    fs:SetWidth(math.min(maxW, math.ceil(full / lines) + SP.xl))
+end
+
+-- Small builders shared by the pages below.
+-- A text block in one of the UI fonts, ink-coloured unless told otherwise, `width` wide (or as
+-- wide as its text when width is nil).
+local function Maines_Text(parent, font, text, color, width)
+    local fs = parent:CreateFontString(nil, "OVERLAY")
+    fs:SetFontObject(font)
+    if width then fs:SetWidth(width) end
+    fs:SetJustifyH("CENTER")
+    fs:SetText(text or "")
+    color = color or INK
+    fs:SetTextColor(color[1], color[2], color[3])
+    return fs
+end
+
+-- A checkbox with its label to the right (s apart). Returns the checkbox and the row's width;
+-- the caller places the checkbox ("TOPLEFT" on the page), the label follows it.
+local CHECK_SIZE = 24
+local function Maines_MakeCheckRow(parent, text)
+    local cb = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
+    cb:SetSize(CHECK_SIZE, CHECK_SIZE)
+    local lbl = Maines_Text(parent, Maines_Font_Body, text)
+    lbl:SetPoint("LEFT", cb, "RIGHT", SP.s, 0)
+    cb.label = lbl
+    return cb, CHECK_SIZE + SP.s + lbl:GetStringWidth()
+end
+
+-- Several check rows stacked as one block, checkboxes aligned on one left edge, the block
+-- centred on the page. Returns the checkboxes (in order) and the y below the block.
+local function Maines_CheckColumn(parent, y, texts)
+    local checks, widest = {}, 0
+    for i, t in ipairs(texts) do
+        local cb, w = Maines_MakeCheckRow(parent, t)
+        checks[i] = cb
+        widest = math.max(widest, w)
+    end
+    local x0 = math.floor((ns.PANEL_WIDTH - widest) / 2)
+    for i, cb in ipairs(checks) do
+        cb:SetPoint("TOPLEFT", x0, y - (i - 1) * (CHECK_SIZE + SP.m))
+    end
+    return checks, y - #checks * (CHECK_SIZE + SP.m) + SP.m
+end
+
+local INPUT_H, BUTTON_H = 24, 30
+ns.INPUT_H, ns.BUTTON_H = INPUT_H, BUTTON_H
 
 -- ---- Main panel: name + bracket (mirrors /mains and /main) ----
-local mainPanel = Maines_Panels.main
-local my = -6
+do
+    local mainPanel = Maines_Panels.main
+    local W = ns.PANEL_WIDTH
+    local my = 0
 
-local nameLabel = mainPanel:CreateFontString(nil, "OVERLAY")
-nameLabel:SetFontObject(Maines_Font_Header)
-nameLabel:SetPoint("TOP", 0, my)
-nameLabel:SetWidth(420)
-nameLabel:SetJustifyH("CENTER")
-nameLabel:SetText("Main character name:")
-nameLabel:SetTextColor(INK[1], INK[2], INK[3])
-my = my - nameLabel:GetStringHeight() - 6
+    local nameLabel = Maines_Text(mainPanel, Maines_Font_Header, "Main character name:", INK, W)
+    nameLabel:SetPoint("TOP", 0, my)
+    my = my - nameLabel:GetStringHeight() - SP.s
 
-local nameBox = CreateFrame("EditBox", nil, mainPanel, "InputBoxTemplate")
-nameBox:SetSize(220, 20)
-nameBox:SetAutoFocus(false)
-nameBox:SetJustifyH("CENTER")
-nameBox:SetMaxLetters(24)
-nameBox:SetPoint("TOP", 0, my)
-my = my - 30
+    local nameBox = CreateFrame("EditBox", nil, mainPanel, "InputBoxTemplate")
+    nameBox:SetSize(260, INPUT_H)
+    nameBox:SetAutoFocus(false)
+    nameBox:SetJustifyH("CENTER")
+    nameBox:SetMaxLetters(24)
+    nameBox:SetPoint("TOP", 0, my)
+    my = my - INPUT_H - SP.xl
 
-local bracketLabel = mainPanel:CreateFontString(nil, "OVERLAY")
-bracketLabel:SetFontObject(Maines_Font_Header)
-bracketLabel:SetPoint("TOP", 0, my)
-bracketLabel:SetWidth(420)
-bracketLabel:SetJustifyH("CENTER")
-bracketLabel:SetText("Bracket style - click one to apply it instantly, or select one and use Apply below:")
-bracketLabel:SetTextColor(INK[1], INK[2], INK[3])
-my = my - bracketLabel:GetStringHeight() - 8
+    local bracketLabel = Maines_Text(mainPanel, Maines_Font_Header,
+        "Bracket style - click one to apply it instantly, or select one and use Apply below:", INK, W)
+    bracketLabel:SetPoint("TOP", 0, my)
+    my = my - bracketLabel:GetStringHeight() - SP.m
 
-local Bracket_Order = {"[", "(", "<", "{", ".", ":", "-", "~", "@", "#"}
-ns.Bracket_Order = Bracket_Order
-local BRACKET_AREA_WIDTH = 440
-local Maines_BracketButtons = {}
-local Maines_SelectedBracketKey
-local bracketRowTop = my
+    local Bracket_Order = {"[", "(", "<", "{", ".", ":", "-", "~", "@", "#"}
+    ns.Bracket_Order = Bracket_Order
+    local BRACKET_AREA_WIDTH = W - 2 * SP.xl
+    local bracketButtons = {}
+    local selectedKey
+    local bracketRowTop = my
+    local layout
+    local customLeft, customRight
 
--- Forward-declared (assigned once every widget below exists) so the OnClick/OnTextChanged
--- closures created below can already reference it as an upvalue - the same pattern
--- Maines_Window itself uses earlier in this file.
-local Maines_LayoutMainPanel
-local customLeft, customRight
-
-for _, key in ipairs(Bracket_Order) do
-    local def = Bracket_Types[key]
-    local btn = Maines_MakeButton(mainPanel, 70, 24, def[1] .. "M" .. def[2])
-    btn:SetScript("OnClick", function()
-        local nm = strtrim(nameBox:GetText() or "")
-        if nm == "" then
-            print("|cFF00FF00Maines|r: type a name first")
-            return
-        end
-        Maines_SelectedBracketKey = key
-        SlashCmdList["MAINS"](nm .. " " .. key)
-        Maines_RefreshWindow()
-    end)
-    Maines_BracketButtons[key] = btn
-end
-
-local applyBtn = Maines_MakeButton(mainPanel, 100, 24, "Apply")
-applyBtn:SetScript("OnClick", function()
-    local nm = strtrim(nameBox:GetText() or "")
-    if nm == "" then
-        print("|cFF00FF00Maines|r: type a name first")
-        return
-    end
-    local l = strtrim(customLeft:GetText() or "")
-    local r = strtrim(customRight:GetText() or "")
-    if l ~= "" then
-        if r ~= "" then
-            SlashCmdList["MAINS"](nm .. " " .. l .. " " .. r)
-        else
-            SlashCmdList["MAINS"](nm .. " " .. l)
-        end
-    elseif Maines_SelectedBracketKey then
-        SlashCmdList["MAINS"](nm .. " " .. Maines_SelectedBracketKey)
-    else
-        print("|cFF00FF00Maines|r: pick a bracket above, or enter a custom symbol below, first")
-        return
-    end
-    Maines_RefreshWindow()
-end)
-
-local customLabel = mainPanel:CreateFontString(nil, "OVERLAY")
-customLabel:SetFontObject(Maines_Font_Header)
-customLabel:SetWidth(420)
-customLabel:SetJustifyH("CENTER")
-customLabel:SetText("Custom bracket (left symbol, optional right symbol):")
-customLabel:SetTextColor(INK[1], INK[2], INK[3])
-
-customLeft = CreateFrame("EditBox", nil, mainPanel, "InputBoxTemplate")
-customLeft:SetSize(50, 20)
-customLeft:SetAutoFocus(false)
-customLeft:SetJustifyH("CENTER")
--- Centered as a unit with customRight (combined width 50 + 20 gap + 50 = 120), not left-hung.
-local CUSTOM_PAIR_WIDTH = 120
-
-customRight = CreateFrame("EditBox", nil, mainPanel, "InputBoxTemplate")
-customRight:SetSize(50, 20)
-customRight:SetAutoFocus(false)
-customRight:SetJustifyH("CENTER")
-customRight:SetPoint("LEFT", customLeft, "RIGHT", 20, 0)
-
-local previewLabel = mainPanel:CreateFontString(nil, "OVERLAY")
-previewLabel:SetFontObject(Maines_Font_Header)
-previewLabel:SetWidth(420)
-previewLabel:SetJustifyH("CENTER")
-previewLabel:SetText("Currently saved - this is what your chat will look like:")
-previewLabel:SetTextColor(INK[1], INK[2], INK[3])
-
-local previewFS = mainPanel:CreateFontString(nil, "OVERLAY")
-previewFS:SetFontObject(Maines_Font_Body)
-previewFS:SetWidth(420)
-previewFS:SetJustifyH("CENTER")
-
--- Lays out everything from the bracket grid downward: bracket buttons live-update to show
--- <left><current name><right> and reflow into as many rows as needed once names get long, and
--- everything below the grid slides to follow it. Every row (the bracket grid, one row per
--- wrap; the Apply button; the custom bracket pair) is centered as a block on the panel's
--- horizontal middle via SetPoint("TOP", xOffset, ...) rather than hung off the left edge.
-Maines_LayoutMainPanel = function()
-    local name = strtrim(nameBox:GetText() or "")
-    local previewName = name ~= "" and name or "Name"
-
-    -- Pass 1: which row each button lands in, and how wide it needs to be.
-    local rows = {{}}
-    local x, row = 0, 1
     for _, key in ipairs(Bracket_Order) do
         local def = Bracket_Types[key]
-        local btn = Maines_BracketButtons[key]
-        btn:SetText(def[1] .. previewName .. def[2])
-        local w = math.max(44, math.min(190, btn.text:GetStringWidth() + 20))
-        if x > 0 and x + w > BRACKET_AREA_WIDTH then
-            x, row = 0, row + 1
-            rows[row] = {}
-        end
-        table.insert(rows[row], {btn = btn, w = w})
-        x = x + w + 6
+        local btn = Maines_MakeButton(mainPanel, 70, BUTTON_H, def[1] .. "M" .. def[2])
+        btn:SetScript("OnClick", function()
+            local nm = strtrim(nameBox:GetText() or "")
+            if nm == "" then
+                ns.Say("|cFF00FF00Maines|r: type a name first")
+                return
+            end
+            selectedKey = key
+            SlashCmdList["MAINS"](nm .. " " .. key)
+            Maines_RefreshWindow()
+        end)
+        bracketButtons[key] = btn
     end
 
-    -- Pass 2: center each row independently, since a short last row (e.g. one leftover
-    -- button) shouldn't be stranded at the left edge under a wider row above it.
-    for rowIndex, items in ipairs(rows) do
-        local rowWidth = -6
-        for _, item in ipairs(items) do rowWidth = rowWidth + item.w + 6 end
-        local cx = -rowWidth / 2
-        for _, item in ipairs(items) do
-            item.btn:SetSize(item.w, 24)
-            item.btn:ClearAllPoints()
-            item.btn:SetPoint("TOP", cx + item.w / 2, bracketRowTop - (rowIndex - 1) * 28)
-            cx = cx + item.w + 6
+    local applyBtn = Maines_MakeButton(mainPanel, 120, BUTTON_H, "Apply")
+    applyBtn:SetScript("OnClick", function()
+        local nm = strtrim(nameBox:GetText() or "")
+        if nm == "" then
+            ns.Say("|cFF00FF00Maines|r: type a name first")
+            return
         end
-    end
-    local afterBrackets = bracketRowTop - #rows * 28 - 8
-
-    applyBtn:ClearAllPoints()
-    applyBtn:SetPoint("TOP", 0, afterBrackets)
-    afterBrackets = afterBrackets - 34
-
-    customLabel:ClearAllPoints()
-    customLabel:SetPoint("TOP", 0, afterBrackets)
-    afterBrackets = afterBrackets - customLabel:GetStringHeight() - 6
-
-    customLeft:ClearAllPoints()
-    customLeft:SetPoint("TOP", -(CUSTOM_PAIR_WIDTH / 2) + 25, afterBrackets)
-    afterBrackets = afterBrackets - 32
-
-    previewLabel:ClearAllPoints()
-    previewLabel:SetPoint("TOP", 0, afterBrackets)
-    afterBrackets = afterBrackets - previewLabel:GetStringHeight() - 6
-
-    previewFS:ClearAllPoints()
-    previewFS:SetPoint("TOP", 0, afterBrackets)
-end
-
-nameBox:SetScript("OnTextChanged", function() Maines_LayoutMainPanel() end)
-Maines_LayoutMainPanel()
-
--- ---- Filter panel: channels + mode + sticky (mirrors /mainchat) ----
-local filterPanel = Maines_Panels.filter
-local fy = -6
-
-local filterIntro = filterPanel:CreateFontString(nil, "OVERLAY")
-filterIntro:SetFontObject(Maines_Font_Body)
-filterIntro:SetPoint("TOP", 0, fy)
-filterIntro:SetWidth(420)
-filterIntro:SetJustifyH("CENTER")
-filterIntro:SetText("|cFF4A4030Check the channels you care about, then pick a mode below. Leave everything unchecked to tag every channel.|r")
-fy = fy - filterIntro:GetStringHeight() - 10
-
-local Channel_Labels = {
-    SAY = "Say", YELL = "Yell", EMOTE = "Emote", PARTY = "Party", PARTY_LEADER = "Party (Leader)",
-    RAID = "Raid", RAID_LEADER = "Raid (Leader)", RAID_WARNING = "Raid Warning",
-    INSTANCE_CHAT = "Instance", INSTANCE_CHAT_LEADER = "Instance (Leader)",
-    GUILD = "Guild", OFFICER = "Officer", WHISPER = "Whisper", BN_WHISPER = "Battle.net Whisper",
-    CHANNEL = "Custom Channel", COMMUNITIES_CHANNEL = "Community", VOICE_TEXT = "Voice Text",
-    AFK = "AFK", DND = "DND",
-}
-
-local Maines_ChannelChecks = {}
-local CHAN_COLS = 2
-local CHAN_COL_WIDTH = 210
-local chanRowTop = fy
-for i, chan in ipairs(Channel_Types) do
-    local col = (i - 1) % CHAN_COLS
-    local row = math.floor((i - 1) / CHAN_COLS)
-    local cb = CreateFrame("CheckButton", nil, filterPanel, "UICheckButtonTemplate")
-    cb:SetSize(22, 22)
-    -- the two columns centered as a block on the page
-    local gridX = math.floor((ns.PANEL_WIDTH - CHAN_COLS * CHAN_COL_WIDTH) / 2) + 30
-    cb:SetPoint("TOPLEFT", gridX + col * CHAN_COL_WIDTH, chanRowTop - row * 24)
-    local lbl = filterPanel:CreateFontString(nil, "OVERLAY")
-    lbl:SetFontObject(Maines_Font_Body)
-    lbl:SetPoint("LEFT", cb, "RIGHT", 2, 0)
-    lbl:SetText(Channel_Labels[chan] or chan)
-    lbl:SetTextColor(INK[1], INK[2], INK[3])
-    cb:SetScript("OnClick", function(self)
-        SlashCmdList["MAINCHAT"]((self:GetChecked() and "+" or "-") .. chan)
+        local l = strtrim(customLeft:GetText() or "")
+        local r = strtrim(customRight:GetText() or "")
+        if l ~= "" then
+            if r ~= "" then
+                SlashCmdList["MAINS"](nm .. " " .. l .. " " .. r)
+            else
+                SlashCmdList["MAINS"](nm .. " " .. l)
+            end
+        elseif selectedKey then
+            SlashCmdList["MAINS"](nm .. " " .. selectedKey)
+        else
+            ns.Say("|cFF00FF00Maines|r: pick a bracket above, or enter a custom symbol below, first")
+            return
+        end
         Maines_RefreshWindow()
     end)
-    Maines_ChannelChecks[chan] = cb
+
+    local customLabel = Maines_Text(mainPanel, Maines_Font_Header,
+        "Custom bracket (left symbol, optional right symbol):", INK, W)
+
+    -- The two symbol boxes are centred as one unit (56 + l gap + 56), not left-hung.
+    local CUSTOM_W = 56
+    customLeft = CreateFrame("EditBox", nil, mainPanel, "InputBoxTemplate")
+    customLeft:SetSize(CUSTOM_W, INPUT_H)
+    customLeft:SetAutoFocus(false)
+    customLeft:SetJustifyH("CENTER")
+    customRight = CreateFrame("EditBox", nil, mainPanel, "InputBoxTemplate")
+    customRight:SetSize(CUSTOM_W, INPUT_H)
+    customRight:SetAutoFocus(false)
+    customRight:SetJustifyH("CENTER")
+    customRight:SetPoint("LEFT", customLeft, "RIGHT", SP.l, 0)
+
+    local previewLabel = Maines_Text(mainPanel, Maines_Font_Header,
+        "Currently saved - this is what your chat will look like:", INK, W)
+    local previewFS = Maines_Text(mainPanel, Maines_Font_Body, "", INK, W)
+
+    -- Lays out everything from the bracket grid downward: bracket buttons live-update to show
+    -- <left><current name><right> and reflow into as many rows as needed once names get long,
+    -- and everything below the grid slides to follow it. Every row is centred on the page.
+    layout = function()
+        local name = strtrim(nameBox:GetText() or "")
+        local previewName = name ~= "" and name or "Name"
+
+        -- Pass 1: which row each button lands in, and how wide it needs to be.
+        local rows = {{}}
+        local x, row = 0, 1
+        for _, key in ipairs(Bracket_Order) do
+            local def = Bracket_Types[key]
+            local btn = bracketButtons[key]
+            btn:SetText(def[1] .. previewName .. def[2])
+            local w = math.max(56, math.min(220, btn.text:GetStringWidth() + 2 * SP.l))
+            if x > 0 and x + w > BRACKET_AREA_WIDTH then
+                x, row = 0, row + 1
+                rows[row] = {}
+            end
+            table.insert(rows[row], {btn = btn, w = w})
+            x = x + w + SP.s
+        end
+
+        -- Pass 2: centre each row on its own, so a short last row isn't stranded at the left.
+        for rowIndex, items in ipairs(rows) do
+            local rowWidth = -SP.s
+            for _, item in ipairs(items) do rowWidth = rowWidth + item.w + SP.s end
+            local cx = -rowWidth / 2
+            for _, item in ipairs(items) do
+                item.btn:SetSize(item.w, BUTTON_H)
+                item.btn:ClearAllPoints()
+                item.btn:SetPoint("TOP", cx + item.w / 2, bracketRowTop - (rowIndex - 1) * (BUTTON_H + SP.s))
+                cx = cx + item.w + SP.s
+            end
+        end
+        local y = bracketRowTop - #rows * (BUTTON_H + SP.s) - SP.xs
+
+        applyBtn:ClearAllPoints()
+        applyBtn:SetPoint("TOP", 0, y)
+        y = y - BUTTON_H - SP.xl
+
+        customLabel:ClearAllPoints()
+        customLabel:SetPoint("TOP", 0, y)
+        y = y - customLabel:GetStringHeight() - SP.s
+
+        customLeft:ClearAllPoints()
+        customLeft:SetPoint("TOP", -(CUSTOM_W + SP.l) / 2, y)
+        y = y - INPUT_H - SP.xl
+
+        previewLabel:ClearAllPoints()
+        previewLabel:SetPoint("TOP", 0, y)
+        y = y - previewLabel:GetStringHeight() - SP.s
+
+        previewFS:ClearAllPoints()
+        previewFS:SetPoint("TOP", 0, y)
+    end
+
+    nameBox:SetScript("OnTextChanged", function() layout() end)
+    layout()
+
+    table.insert(ns.RefreshHooks, function()
+        local name = _G["Maines_Name_DB"] or ""
+        local left = _G["Maines_Bracket_Left_DB"] or ""
+        local right = _G["Maines_Bracket_Right_DB"] or ""
+        nameBox:SetText(name)
+        layout()
+
+        selectedKey = nil
+        for key, btn in pairs(bracketButtons) do
+            local def = Bracket_Types[key]
+            if left ~= "" and def[1] == left and def[2] == right then
+                btn:Disable()
+                selectedKey = key
+            else
+                btn:Enable()
+            end
+        end
+
+        if name ~= "" and left ~= "" then
+            previewFS:SetText(HEX_ACCENT .. left .. name .. right .. "|r " .. HEX_TEXT .. "Hello there, guildies!|r")
+        else
+            previewFS:SetText(HEX_SOFT .. "(not set yet - pick a name and bracket above)|r")
+        end
+    end)
 end
-fy = chanRowTop - math.ceil(#Channel_Types / CHAN_COLS) * 24 - 10
 
--- Rows below are centered as a block (label/checkbox + control together), computed AFTER the
--- buttons exist so it accounts for their real auto-sized widths, not a guess.
-local modeLabel = filterPanel:CreateFontString(nil, "OVERLAY")
-modeLabel:SetFontObject(Maines_Font_Header)
-modeLabel:SetText("Filter mode:")
-modeLabel:SetTextColor(INK[1], INK[2], INK[3])
+-- ---- Filter panel: channels + mode + sticky (mirrors /mainchat) ----
+do
+    local filterPanel = Maines_Panels.filter
+    local W = ns.PANEL_WIDTH
+    local fy = 0
 
-local modeIncludeBtn = Maines_MakeButton(filterPanel, 0, 24, "Only checked")
-modeIncludeBtn:SetPoint("LEFT", modeLabel, "RIGHT", 10, 0)
-modeIncludeBtn:SetScript("OnClick", function() SlashCmdList["MAINCHAT"]("mode include"); Maines_RefreshWindow() end)
+    local filterIntro = Maines_Text(filterPanel, Maines_Font_Body, "Check the channels you care about, then pick "
+        .. "a mode below. Leave everything unchecked to tag every channel.", INK_SOFT, ns.READ_W)
+    filterIntro:SetPoint("TOP", 0, fy)
+    ns.BalanceText(filterIntro, ns.READ_W)
+    fy = fy - filterIntro:GetStringHeight() - SP.l
 
-local modeExcludeBtn = Maines_MakeButton(filterPanel, 0, 24, "All except checked")
-modeExcludeBtn:SetPoint("LEFT", modeIncludeBtn, "RIGHT", 6, 0)
-modeExcludeBtn:SetScript("OnClick", function() SlashCmdList["MAINCHAT"]("mode exclude"); Maines_RefreshWindow() end)
+    local Channel_Labels = {
+        SAY = "Say", YELL = "Yell", EMOTE = "Emote", PARTY = "Party", PARTY_LEADER = "Party (Leader)",
+        RAID = "Raid", RAID_LEADER = "Raid (Leader)", RAID_WARNING = "Raid Warning",
+        INSTANCE_CHAT = "Instance", INSTANCE_CHAT_LEADER = "Instance (Leader)",
+        GUILD = "Guild", OFFICER = "Officer", WHISPER = "Whisper", BN_WHISPER = "Battle.net Whisper",
+        CHANNEL = "Custom Channel", COMMUNITIES_CHANNEL = "Community", VOICE_TEXT = "Voice Text",
+        AFK = "AFK", DND = "DND",
+    }
 
-local modeRowWidth = modeLabel:GetStringWidth() + 10 + modeIncludeBtn:GetWidth() + 6 + modeExcludeBtn:GetWidth()
-modeLabel:SetPoint("TOP", -modeRowWidth / 2 + modeLabel:GetStringWidth() / 2, fy)
-fy = fy - 32
+    -- Three columns, each as wide as the longest label, checkboxes aligned down each column and
+    -- the grid centred as a block.
+    local channelChecks = {}
+    local COLS, ROW_STEP = 3, CHECK_SIZE + SP.s
+    local widest = 0
+    for _, chan in ipairs(Channel_Types) do
+        local cb, w = Maines_MakeCheckRow(filterPanel, Channel_Labels[chan] or chan)
+        widest = math.max(widest, w)
+        cb:SetScript("OnClick", function(self)
+            SlashCmdList["MAINCHAT"]((self:GetChecked() and "+" or "-") .. chan)
+            Maines_RefreshWindow()
+        end)
+        channelChecks[#channelChecks + 1] = cb
+        channelChecks[chan] = cb
+    end
+    local colW = widest + SP.xl
+    local gridX = math.floor((W - (COLS * colW - SP.xl)) / 2)
+    for i, cb in ipairs(channelChecks) do
+        local col, row = (i - 1) % COLS, math.floor((i - 1) / COLS)
+        cb:SetPoint("TOPLEFT", gridX + col * colW, fy - row * ROW_STEP)
+    end
+    fy = fy - math.ceil(#Channel_Types / COLS) * ROW_STEP - SP.l
 
-local stickyCheck = CreateFrame("CheckButton", nil, filterPanel, "UICheckButtonTemplate")
-stickyCheck:SetSize(22, 22)
-local stickyLbl = filterPanel:CreateFontString(nil, "OVERLAY")
-stickyLbl:SetFontObject(Maines_Font_Body)
-stickyLbl:SetPoint("LEFT", stickyCheck, "RIGHT", 2, 0)
-stickyLbl:SetText("Keep this filter across reloads (sticky)")
-stickyLbl:SetTextColor(INK[1], INK[2], INK[3])
-local stickyRowWidth = 22 + 2 + stickyLbl:GetStringWidth()
-stickyCheck:SetPoint("TOP", -stickyRowWidth / 2 + 11, fy)
-stickyCheck:SetScript("OnClick", function() SlashCmdList["MAINCHAT"]("sticky"); Maines_RefreshWindow() end)
-fy = fy - 30
+    -- Mode: the label and its two buttons centred together as one row.
+    local modeLabel = Maines_Text(filterPanel, Maines_Font_Header, "Filter mode:")
+    local modeIncludeBtn = Maines_MakeButton(filterPanel, 0, BUTTON_H, "Only checked")
+    modeIncludeBtn:SetPoint("LEFT", modeLabel, "RIGHT", SP.m, 0)
+    modeIncludeBtn:SetScript("OnClick", function() SlashCmdList["MAINCHAT"]("mode include"); Maines_RefreshWindow() end)
+    local modeExcludeBtn = Maines_MakeButton(filterPanel, 0, BUTTON_H, "All except checked")
+    modeExcludeBtn:SetPoint("LEFT", modeIncludeBtn, "RIGHT", SP.s, 0)
+    modeExcludeBtn:SetScript("OnClick", function() SlashCmdList["MAINCHAT"]("mode exclude"); Maines_RefreshWindow() end)
+    local modeRowWidth = modeLabel:GetStringWidth() + SP.m + modeIncludeBtn:GetWidth() + SP.s + modeExcludeBtn:GetWidth()
+    modeLabel:SetPoint("TOP", -modeRowWidth / 2 + modeLabel:GetStringWidth() / 2, fy - (BUTTON_H - modeLabel:GetStringHeight()) / 2)
+    fy = fy - BUTTON_H - SP.m
 
-local clearFilterBtn = Maines_MakeButton(filterPanel, 0, 24, "Clear Filter (Tag All)")
-clearFilterBtn:SetPoint("TOP", 0, fy)
-clearFilterBtn:SetScript("OnClick", function() SlashCmdList["MAINCHAT"](""); Maines_RefreshWindow() end)
-fy = fy - 32
+    local sticky
+    sticky, fy = Maines_CheckColumn(filterPanel, fy, {"Keep this filter across reloads (sticky)"})
+    local stickyCheck = sticky[1]
+    stickyCheck:SetScript("OnClick", function() SlashCmdList["MAINCHAT"]("sticky"); Maines_RefreshWindow() end)
+    fy = fy - SP.m
 
-local filterStatus = filterPanel:CreateFontString(nil, "OVERLAY")
-filterStatus:SetFontObject(Maines_Font_Body)
-filterStatus:SetPoint("TOP", 0, fy)
-filterStatus:SetWidth(420)
-filterStatus:SetJustifyH("CENTER")
+    local clearFilterBtn = Maines_MakeButton(filterPanel, 0, BUTTON_H, "Clear Filter (Tag All)")
+    clearFilterBtn:SetPoint("TOP", 0, fy)
+    clearFilterBtn:SetScript("OnClick", function() SlashCmdList["MAINCHAT"](""); Maines_RefreshWindow() end)
+    fy = fy - BUTTON_H - SP.m
+
+    local filterStatus = Maines_Text(filterPanel, Maines_Font_Body, "", INK_SOFT, W)
+    filterStatus:SetPoint("TOP", 0, fy)
+
+    table.insert(ns.RefreshHooks, function()
+        local filter = Maines_GetChatFilter()
+        local mode = Maines_ChatFilterMode_DB or "include"
+        for _, chan in ipairs(Channel_Types) do
+            local checked = false
+            for _, v in ipairs(filter) do if v == chan then checked = true; break end end
+            channelChecks[chan]:SetChecked(checked)
+        end
+        if mode == "exclude" then
+            modeExcludeBtn:Disable(); modeIncludeBtn:Enable()
+        else
+            modeIncludeBtn:Disable(); modeExcludeBtn:Enable()
+        end
+        stickyCheck:SetChecked(Maines_ChatFilterSticky_DB and true or false)
+        if #filter == 0 then
+            filterStatus:SetText("Currently: tagging every channel (no filter set).")
+        elseif mode == "exclude" then
+            filterStatus:SetText("Currently: tagging every channel EXCEPT " .. table.concat(filter, ", ") .. ".")
+        else
+            filterStatus:SetText("Currently: tagging ONLY " .. table.concat(filter, ", ") .. ".")
+        end
+    end)
+end
 
 -- ---- Behavior panel: on-main detection + debug (mirrors /mainhide, /mainshow, /maindebug) ----
-local behaviorPanel = Maines_Panels.behavior
-local by = -10
+do
+    local behaviorPanel = Maines_Panels.behavior
+    local checks = Maines_CheckColumn(behaviorPanel, 0, {
+        "Hide the tag while playing my main (alts are always tagged)",
+        "Print debug info for every tagging decision",
+    })
+    local hideOnMainCheck, debugCheck = checks[1], checks[2]
+    hideOnMainCheck:SetScript("OnClick", function(self)
+        if self:GetChecked() then SlashCmdList["MAINHIDE"]() else SlashCmdList["MAINSHOW"]() end
+        Maines_RefreshWindow()
+    end)
+    debugCheck:SetScript("OnClick", function() SlashCmdList["MAINDEBUG"](); Maines_RefreshWindow() end)
 
-local hideOnMainCheck = CreateFrame("CheckButton", nil, behaviorPanel, "UICheckButtonTemplate")
-hideOnMainCheck:SetSize(22, 22)
-local hideOnMainLbl = behaviorPanel:CreateFontString(nil, "OVERLAY")
-hideOnMainLbl:SetFontObject(Maines_Font_Body)
-hideOnMainLbl:SetPoint("LEFT", hideOnMainCheck, "RIGHT", 2, 0)
-hideOnMainLbl:SetText("Hide the tag while playing my main (alts are always tagged)")
-hideOnMainLbl:SetTextColor(INK[1], INK[2], INK[3])
-local hideOnMainRowWidth = 22 + 2 + hideOnMainLbl:GetStringWidth()
-hideOnMainCheck:SetPoint("TOP", -hideOnMainRowWidth / 2 + 11, by)
-hideOnMainCheck:SetScript("OnClick", function(self)
-    if self:GetChecked() then SlashCmdList["MAINHIDE"]() else SlashCmdList["MAINSHOW"]() end
-    Maines_RefreshWindow()
-end)
-by = by - 34
-
-local debugCheck = CreateFrame("CheckButton", nil, behaviorPanel, "UICheckButtonTemplate")
-debugCheck:SetSize(22, 22)
-local debugLbl = behaviorPanel:CreateFontString(nil, "OVERLAY")
-debugLbl:SetFontObject(Maines_Font_Body)
-debugLbl:SetPoint("LEFT", debugCheck, "RIGHT", 2, 0)
-debugLbl:SetText("Print debug info for every tagging decision")
-debugLbl:SetTextColor(INK[1], INK[2], INK[3])
-local debugRowWidth = 22 + 2 + debugLbl:GetStringWidth()
-debugCheck:SetPoint("TOP", -debugRowWidth / 2 + 11, by)
-debugCheck:SetScript("OnClick", function() SlashCmdList["MAINDEBUG"](); Maines_RefreshWindow() end)
+    table.insert(ns.RefreshHooks, function()
+        hideOnMainCheck:SetChecked(Maines_HideOnMain_DB and true or false)
+        debugCheck:SetChecked(Maines_Debug and true or false)
+    end)
+end
 
 -- ---- Cosmetic panel: minimap + music + colors (mirrors /mainmap, /mainmusic, /maincolor) ----
-local cosmeticPanel = Maines_Panels.cosmetic
-local cy = -6
+do
+    local cosmeticPanel = Maines_Panels.cosmetic
+    local W = ns.PANEL_WIDTH
+    local cy = 0
 
-local minimapCheck = CreateFrame("CheckButton", nil, cosmeticPanel, "UICheckButtonTemplate")
-minimapCheck:SetSize(22, 22)
-local minimapLbl = cosmeticPanel:CreateFontString(nil, "OVERLAY")
-minimapLbl:SetFontObject(Maines_Font_Body)
-minimapLbl:SetPoint("LEFT", minimapCheck, "RIGHT", 2, 0)
-minimapLbl:SetText("Show minimap icon")
-minimapLbl:SetTextColor(INK[1], INK[2], INK[3])
-local minimapRowWidth = 22 + 2 + minimapLbl:GetStringWidth()
-minimapCheck:SetPoint("TOP", -minimapRowWidth / 2 + 11, cy)
-minimapCheck:SetScript("OnClick", function() SlashCmdList["MAINMAP"](); Maines_RefreshWindow() end)
-cy = cy - 32
+    -- The minimap checkbox and the music button share the first row, centred together.
+    local minimapCheck, minimapW = Maines_MakeCheckRow(cosmeticPanel, "Show minimap icon")
+    minimapCheck:SetScript("OnClick", function() SlashCmdList["MAINMAP"](); Maines_RefreshWindow() end)
+    local musicBtn = Maines_MakeButton(cosmeticPanel, 0, BUTTON_H, "Replay Intro Music")
+    musicBtn:SetScript("OnClick", function()
+        SlashCmdList["MAINMUSIC"]()
+        PlaySoundFile("Interface\\Addons\\Maines\\music\\maines_intro.mp3")
+        ns.Status("|cFF00FF00Maines|r: playing the intro music")
+    end)
+    local rowW = minimapW + SP.xl + musicBtn:GetWidth()
+    local x0 = math.floor((W - rowW) / 2)
+    minimapCheck:SetPoint("TOPLEFT", x0, cy - (BUTTON_H - CHECK_SIZE) / 2)
+    musicBtn:SetPoint("TOPLEFT", x0 + minimapW + SP.xl, cy)
+    cy = cy - BUTTON_H - SP.xl
 
-local musicBtn = Maines_MakeButton(cosmeticPanel, 0, 24, "Replay Intro Music")
-musicBtn:SetPoint("TOP", 0, cy)
-musicBtn:SetScript("OnClick", function()
-    SlashCmdList["MAINMUSIC"]()
-    PlaySoundFile("Interface\\Addons\\Maines\\music\\maines_intro.mp3")
-end)
-cy = cy - 36
+    local paletteLabel = Maines_Text(cosmeticPanel, Maines_Font_Header,
+        "Recolor the UI - click a swatch, or roll one at random:", INK, W)
+    paletteLabel:SetPoint("TOP", 0, cy)
+    cy = cy - paletteLabel:GetStringHeight() - SP.m
 
-local paletteLabel = cosmeticPanel:CreateFontString(nil, "OVERLAY")
-paletteLabel:SetFontObject(Maines_Font_Header)
-paletteLabel:SetPoint("TOP", 0, cy)
-paletteLabel:SetWidth(420)
-paletteLabel:SetJustifyH("CENTER")
-paletteLabel:SetText("Recolor the UI - click a swatch, or roll one at random:")
-paletteLabel:SetTextColor(INK[1], INK[2], INK[3])
-cy = cy - paletteLabel:GetStringHeight() - 8
-
--- Each row is label (fixed 150px box, so the swatch columns stay aligned row to row) + 5
--- swatches (20px + 4px gap each = 116px) = 270px total, centered as one constant-width block.
-local PALETTE_ROW_OFFSET = -60
-for _, palette in ipairs(Color_Palettes) do
-    local rowLbl = cosmeticPanel:CreateFontString(nil, "OVERLAY")
-    rowLbl:SetFontObject(Maines_Font_BodySmall)
-    rowLbl:SetPoint("TOP", PALETTE_ROW_OFFSET, cy)
-    rowLbl:SetWidth(150)
-    rowLbl:SetJustifyH("LEFT")
-    rowLbl:SetText(palette.name)
-    rowLbl:SetTextColor(INK_SOFT[1], INK_SOFT[2], INK_SOFT[3])
-    for j, hex in ipairs(palette.colors) do
-        local r, g, b = Maines_HexToRGB(hex)
-        local sw = Maines_MakeSwatch(cosmeticPanel, r, g, b)
-        sw:SetSize(20, 20)
-        sw:SetPoint("LEFT", rowLbl, "RIGHT", 4 + (j - 1) * 24, 0)
-        sw:SetScript("OnClick", function() Maines_ApplyPaletteColor(r, g, b, hex, palette.name) end)
-        sw:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_TOP")
-            GameTooltip:SetText("#" .. hex)
-            GameTooltip:Show()
-        end)
-        sw:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    -- Each row: the palette's name in a column as wide as the longest name, then its 5 swatches,
+    -- so the swatch columns line up row to row; the whole block is centred.
+    local SWATCH, SWATCH_GAP = 22, SP.xs
+    local labels, nameW = {}, 0
+    for i, palette in ipairs(Color_Palettes) do
+        labels[i] = Maines_Text(cosmeticPanel, Maines_Font_BodySmall, palette.name, INK_SOFT)
+        nameW = math.max(nameW, labels[i]:GetStringWidth())
     end
-    cy = cy - 26
-end
-cy = cy - 6
+    nameW = math.ceil(nameW)
+    local blockW = nameW + SP.m + 5 * SWATCH + 4 * SWATCH_GAP
+    local bx = math.floor((W - blockW) / 2)
+    for i, palette in ipairs(Color_Palettes) do
+        local rowLbl = labels[i]
+        rowLbl:SetWidth(nameW)
+        rowLbl:SetJustifyH("LEFT")
+        rowLbl:SetPoint("TOPLEFT", bx, cy - (SWATCH - rowLbl:GetStringHeight()) / 2)
+        for j, hex in ipairs(palette.colors) do
+            local r, g, b = Maines_HexToRGB(hex)
+            local sw = Maines_MakeSwatch(cosmeticPanel, r, g, b)
+            sw:SetSize(SWATCH, SWATCH)
+            sw:SetPoint("TOPLEFT", bx + nameW + SP.m + (j - 1) * (SWATCH + SWATCH_GAP), cy)
+            sw:SetScript("OnClick", function() Maines_ApplyPaletteColor(r, g, b, hex, palette.name) end)
+            sw:SetScript("OnEnter", function(self)
+                GameTooltip:SetOwner(self, "ANCHOR_TOP")
+                GameTooltip:SetText("#" .. hex)
+                GameTooltip:Show()
+            end)
+            sw:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        end
+        cy = cy - SWATCH - SWATCH_GAP
+    end
+    cy = cy - SP.l
 
-local randomBtn = Maines_MakeButton(cosmeticPanel, 0, 24, "Random Palette")
-randomBtn:SetPoint("TOP", 0, cy)
-randomBtn:SetScript("OnClick", function() SlashCmdList["MAINCOLOR"]() end)
+    local randomBtn = Maines_MakeButton(cosmeticPanel, 0, BUTTON_H, "Random Palette")
+    randomBtn:SetPoint("TOP", 0, cy)
+    randomBtn:SetScript("OnClick", function() SlashCmdList["MAINCOLOR"]() end)
+
+    table.insert(ns.RefreshHooks, function()
+        local mmHidden = Maines_DB and Maines_DB.minimap and Maines_DB.minimap.hide
+        minimapCheck:SetChecked(not mmHidden)
+    end)
+end
 
 -- ---- Help panel: points at the full reference window/chat dump (mirrors /mainhelp) ----
-local helpTabPanel = Maines_Panels.help
-local hy = -6
+do
+    local helpTabPanel = Maines_Panels.help
+    local hy = 0
 
-local helpIntro = helpTabPanel:CreateFontString(nil, "OVERLAY")
-helpIntro:SetFontObject(Maines_Font_Body)
-helpIntro:SetPoint("TOP", 0, hy)
-helpIntro:SetWidth(420)
-helpIntro:SetJustifyH("CENTER")
-helpIntro:SetText("|cFF4A4030Every command has a page in this window. For the full written reference - icons, examples, and notes - open the dedicated help window, or print the same thing to chat.|r")
-hy = hy - helpIntro:GetStringHeight() - 14
+    local helpIntro = Maines_Text(helpTabPanel, Maines_Font_Body, "Every command has a page in this window. For "
+        .. "the full written reference - icons, examples, and notes - open the dedicated help window, or print "
+        .. "the same thing to chat.", INK_SOFT, ns.READ_W)
+    helpIntro:SetPoint("TOP", 0, hy)
+    ns.BalanceText(helpIntro, ns.READ_W)
+    hy = hy - helpIntro:GetStringHeight() - SP.xl
 
-local openHelpBtn = Maines_MakeButton(helpTabPanel, 0, 24, "Open Full Command Reference")
-openHelpBtn:SetPoint("TOP", 0, hy)
-openHelpBtn:SetScript("OnClick", function()
-    Maines_BuildHelpContent()
-    Help_Frame:Show()
-end)
-hy = hy - 32
+    local openHelpBtn = Maines_MakeButton(helpTabPanel, 300, BUTTON_H, "Open Full Command Reference")
+    openHelpBtn:SetPoint("TOP", 0, hy)
+    openHelpBtn:SetScript("OnClick", function()
+        Maines_BuildHelpContent()
+        Help_Frame:Show()
+    end)
+    hy = hy - BUTTON_H - SP.m
 
-local printHelpBtn = Maines_MakeButton(helpTabPanel, 0, 24, "Print Reference to Chat")
-printHelpBtn:SetPoint("TOP", 0, hy)
-printHelpBtn:SetScript("OnClick", function() Maines_PrintHelpToChat() end)
+    local printHelpBtn = Maines_MakeButton(helpTabPanel, 300, BUTTON_H, "Print Reference to Chat")
+    printHelpBtn:SetPoint("TOP", 0, hy)
+    printHelpBtn:SetScript("OnClick", function() Maines_PrintHelpToChat() end)
+end
 
 Maines_ShowPanel("main")
 
--- Pulls every saved variable the slash commands above already read/write and reflects it
--- into the widgets built above. Deliberately a plain global (not local) - several OnClick
--- handlers above reference it as a forward reference, the same pattern the rest of this file
--- already relies on (see maines_close_button historically, Maines_Window now).
+-- Pulls every saved variable the slash commands above already read/write and reflects it into
+-- the widgets: each page (here and in phrases.lua, animate.lua, badges.lua) registers its own
+-- refresh in ns.RefreshHooks. Deliberately a plain global (not local) - several OnClick handlers
+-- above reference it as a forward reference.
 function Maines_RefreshWindow()
-    local name = _G["Maines_Name_DB"] or ""
-    local left = _G["Maines_Bracket_Left_DB"] or ""
-    local right = _G["Maines_Bracket_Right_DB"] or ""
-    nameBox:SetText(name)
-    Maines_LayoutMainPanel()
-
-    Maines_SelectedBracketKey = nil
-    for key, btn in pairs(Maines_BracketButtons) do
-        local def = Bracket_Types[key]
-        if left ~= "" and def[1] == left and def[2] == right then
-            btn:Disable()
-            Maines_SelectedBracketKey = key
-        else
-            btn:Enable()
-        end
-    end
-
-    if name ~= "" and left ~= "" then
-        previewFS:SetText(HEX_ACCENT .. left .. name .. right .. "|r " .. HEX_TEXT .. "Hello there, guildies!|r")
-    else
-        previewFS:SetText(HEX_SOFT .. "(not set yet - pick a name and bracket above)|r")
-    end
-
-    local filter = Maines_GetChatFilter()
-    local mode = Maines_ChatFilterMode_DB or "include"
-    for _, chan in ipairs(Channel_Types) do
-        local checked = false
-        for _, v in ipairs(filter) do if v == chan then checked = true; break end end
-        Maines_ChannelChecks[chan]:SetChecked(checked)
-    end
-    if mode == "exclude" then
-        modeExcludeBtn:Disable(); modeIncludeBtn:Enable()
-    else
-        modeIncludeBtn:Disable(); modeExcludeBtn:Enable()
-    end
-    stickyCheck:SetChecked(Maines_ChatFilterSticky_DB and true or false)
-    if #filter == 0 then
-        filterStatus:SetText("|cFF4A4030Currently: tagging every channel (no filter set).|r")
-    elseif mode == "exclude" then
-        filterStatus:SetText("|cFF4A4030Currently: tagging every channel EXCEPT " .. table.concat(filter, ", ") .. ".|r")
-    else
-        filterStatus:SetText("|cFF4A4030Currently: tagging ONLY " .. table.concat(filter, ", ") .. ".|r")
-    end
-
-    hideOnMainCheck:SetChecked(Maines_HideOnMain_DB and true or false)
-    debugCheck:SetChecked(Maines_Debug and true or false)
-
-    local mmHidden = Maines_DB and Maines_DB.minimap and Maines_DB.minimap.hide
-    minimapCheck:SetChecked(not mmHidden)
-
     for _, refresh in ipairs(ns.RefreshHooks) do refresh() end
 end
 
@@ -2717,8 +2926,8 @@ local NOTE_NEW = {
         .. "like I did in the early versions",
 }
 
-local NOTE_WIDTH = 480
-local NOTE_TEXT_WIDTH = NOTE_WIDTH - 60
+local NOTE_WIDTH = 540
+local NOTE_TEXT_WIDTH = NOTE_WIDTH - 2 * (SP.xl + 6)
 
 local Note_Frame = CreateFrame("Frame", "Maines_NoteFrame", UIParent, "BackdropTemplate")
 Note_Frame:SetWidth(NOTE_WIDTH)
@@ -2748,7 +2957,7 @@ Note_Frame:HookScript("OnShow", function() noteFade:Play() end) -- hooked: the f
 local noteBand = CreateFrame("Frame", nil, Note_Frame)
 noteBand:SetPoint("TOPLEFT", 3, -3)
 noteBand:SetPoint("TOPRIGHT", -3, -3)
-noteBand:SetHeight(48)
+noteBand:SetHeight(52)
 Maines_DressBrassBand(noteBand)
 
 local noteTitle = noteBand:CreateFontString(nil, "OVERLAY")
@@ -2759,11 +2968,11 @@ noteTitle:SetTextColor(0.20, 0.11, 0.03)
 noteTitle:SetShadowColor(1, 0.94, 0.78, 0.6)
 noteTitle:SetShadowOffset(0, -1)
 
-local noteClose = CreateFrame("Button", nil, noteBand, "UIPanelCloseButton")
-noteClose:SetPoint("TOPRIGHT", -4, -4)
+local noteClose = Maines_MakeCloseButton(noteBand, Note_Frame)
+noteClose:SetPoint("RIGHT", -SP.m, 0)
 
 -- The body: one centered column of text blocks, stacked top to bottom.
-local noteY = -48 - 20
+local noteY = -52 - SP.l - SP.xs
 local function NoteText(text, font, color, gapAfter)
     local fs = Note_Frame:CreateFontString(nil, "OVERLAY")
     fs:SetFontObject(font)
@@ -2771,14 +2980,15 @@ local function NoteText(text, font, color, gapAfter)
     fs:SetJustifyH("CENTER")
     fs:SetPoint("TOP", 0, noteY)
     fs:SetText(text)
+    ns.BalanceText(fs, NOTE_TEXT_WIDTH)
     fs:SetTextColor(color[1], color[2], color[3])
-    noteY = noteY - fs:GetStringHeight() - (gapAfter or 6)
+    noteY = noteY - fs:GetStringHeight() - (gapAfter or SP.s)
     return fs
 end
 
 -- A short fading rule with a diamond in the middle, between sections.
 local function NoteDivider()
-    noteY = noteY - 4
+    noteY = noteY - SP.xs
     local diamond = Note_Frame:CreateTexture(nil, "ARTWORK")
     diamond:SetTexture("Interface\\Buttons\\WHITE8X8")
     diamond:SetVertexColor(INK_SOFT[1], INK_SOFT[2], INK_SOFT[3])
@@ -2788,7 +2998,7 @@ local function NoteDivider()
     for _, side in ipairs({-1, 1}) do
         local line = Note_Frame:CreateTexture(nil, "ARTWORK")
         line:SetTexture("Interface\\Buttons\\WHITE8X8")
-        line:SetSize(110, 1)
+        line:SetSize(140, 1)
         local ink, clear = CreateColor(INK_SOFT[1], INK_SOFT[2], INK_SOFT[3], 0.8), CreateColor(INK_SOFT[1], INK_SOFT[2], INK_SOFT[3], 0)
         if side < 0 then
             line:SetPoint("RIGHT", diamond, "LEFT", -6, 0)
@@ -2798,30 +3008,30 @@ local function NoteDivider()
             line:SetGradient("HORIZONTAL", ink, clear)
         end
     end
-    noteY = noteY - 18
+    noteY = noteY - SP.l - SP.xs
 end
 
-NoteText(NOTE_MESSAGE[1], Maines_Font_Header, INK, 8)
-NoteText(NOTE_MESSAGE[2], Maines_Font_Body, INK, 12)
+NoteText(NOTE_MESSAGE[1], Maines_Font_Header, INK, SP.s)
+NoteText(NOTE_MESSAGE[2], Maines_Font_Body, INK, SP.m)
 for i, project in ipairs(NOTE_PROJECTS) do
-    NoteText(HEX_ACCENT .. "-|r  " .. project .. "  " .. HEX_ACCENT .. "-|r", Maines_Font_Body, INK, i == #NOTE_PROJECTS and 12 or 4)
+    NoteText(HEX_ACCENT .. "-|r  " .. project .. "  " .. HEX_ACCENT .. "-|r", Maines_Font_Body, INK, i == #NOTE_PROJECTS and SP.m or SP.xs)
 end
-NoteText(NOTE_CLOSING[1], Maines_Font_Body, INK, 4)
-NoteText(NOTE_CLOSING[2], Maines_Font_Header, INK, 8)
-NoteText(NOTE_SIGNATURE, Maines_Font_BodySmall, INK_SOFT, 10)
+NoteText(NOTE_CLOSING[1], Maines_Font_Body, INK, SP.xs)
+NoteText(NOTE_CLOSING[2], Maines_Font_Header, INK, SP.s)
+NoteText(NOTE_SIGNATURE, Maines_Font_BodySmall, INK_SOFT, SP.m)
 NoteDivider()
-NoteText("New in " .. NOTE_VERSION, Maines_Font_Heading, INK, 8)
+NoteText("New in " .. NOTE_VERSION, Maines_Font_Heading, INK, SP.s)
 for i, line in ipairs(NOTE_NEW) do
-    NoteText(line, Maines_Font_Body, INK_SOFT, i == #NOTE_NEW and 12 or 3)
+    NoteText(line, Maines_Font_Body, INK_SOFT, i == #NOTE_NEW and SP.m or SP.xs)
 end
 NoteDivider()
 NoteText("Type " .. HEX_ACCENT .. "/mainnote|r any time to read this again - news and changes "
-    .. "for each update will be here.", Maines_Font_BodySmall, INK_SOFT, 14)
+    .. "for each update will be here.", Maines_Font_BodySmall, INK_SOFT, SP.l)
 
-local noteOk = Maines_MakeButton(Note_Frame, 160, 26, "Thank you!")
+local noteOk = Maines_MakeButton(Note_Frame, 180, 30, "Thank you!")
 noteOk:SetPoint("TOP", 0, noteY)
 noteOk:SetScript("OnClick", function() Note_Frame:Hide() end)
-noteY = noteY - 26 - 20
+noteY = noteY - 30 - SP.xl
 Note_Frame:SetHeight(-noteY)
 Note_Frame.maines_frame.fit()
 

@@ -106,7 +106,7 @@ local function SetStyle(key)
     local db = DB()
     db.style = key
     db.step = 0
-    print(PREFIX .. "tag animation: |cFFFFE4B5" .. STYLE_BY_KEY[key].label .. "|r")
+    ns.Say(PREFIX .. "tag animation: |cFFFFE4B5" .. STYLE_BY_KEY[key].label .. "|r")
 end
 
 local function SetTrigger(trigger, seconds)
@@ -114,9 +114,9 @@ local function SetTrigger(trigger, seconds)
     db.trigger = trigger
     if seconds then db.seconds = seconds end
     if trigger == "time" then
-        print(PREFIX .. "tag animation steps every " .. db.seconds .. " seconds")
+        ns.Say(PREFIX .. "tag animation steps every " .. db.seconds .. " seconds")
     else
-        print(PREFIX .. "tag animation steps once per message you send")
+        ns.Say(PREFIX .. "tag animation steps once per message you send")
     end
 end
 
@@ -127,11 +127,11 @@ SlashCmdList["MAINANIM"] = function(msg)
     local word, rest = msg:match("^(%S*)%s*(.-)$")
     if msg == "" then
         local s = STYLE_BY_KEY[db.style]
-        print(PREFIX .. "tag animation is |cFFFFE4B5" .. s.label .. "|r, stepping "
+        ns.Say(PREFIX .. "tag animation is |cFFFFE4B5" .. s.label .. "|r, stepping "
             .. (db.trigger == "time" and ("every " .. db.seconds .. " seconds") or "once per message"))
         local names = {}
         for _, st in ipairs(STYLES) do names[#names + 1] = st.key end
-        print(PREFIX .. "styles: " .. table.concat(names, ", ") .. "  -  /mainanim <style> | message | time <seconds>")
+        ns.Say(PREFIX .. "styles: " .. table.concat(names, ", ") .. "  -  /mainanim <style> | message | time <seconds>")
     elseif STYLE_BY_KEY[word] then
         SetStyle(word)
     elseif word == "message" then
@@ -141,10 +141,10 @@ SlashCmdList["MAINANIM"] = function(msg)
         if secs and secs >= 10 then
             SetTrigger("time", math.floor(secs))
         else
-            print(PREFIX .. "give a number of seconds, 10 or more: /mainanim time 60")
+            ns.Say(PREFIX .. "give a number of seconds, 10 or more: /mainanim time 60")
         end
     else
-        print(PREFIX .. "unknown style \"" .. word .. "\" - type /mainanim to see the styles")
+        ns.Say(PREFIX .. "unknown style \"" .. word .. "\" - type /mainanim to see the styles")
     end
     if Maines_RefreshWindow and Maines_Frame and Maines_Frame:IsShown() then Maines_RefreshWindow() end
 end
@@ -154,6 +154,7 @@ end
 local panel = ns.Panels.animate
 local W = ns.PANEL_WIDTH
 local C = ns.Colors
+local SP = ns.SP
 
 local function Label(text, font, color)
     local fs = panel:CreateFontString(nil, "OVERLAY")
@@ -168,52 +169,55 @@ end
 local _, y = ns.MakeHeading(panel, "Animated tag", 0, 0, W)
 local intro = Label("Your tag can change a little with each message you send, like a slow animation "
     .. "playing across your chat. Pick a style:", ns.Fonts.Body, C.INK_SOFT)
-intro:SetPoint("TOPLEFT", 0, y)
-intro:SetWidth(W)
-y = y - intro:GetStringHeight() - 12
+-- A reading width narrower than the page, so the intro wraps into even lines.
+intro:SetPoint("TOP", panel, "TOP", 0, y)
+ns.BalanceText(intro, ns.READ_W)
+y = y - intro:GetStringHeight() - SP.l
 
 local styleButtons = {}
-local COLS, BTN_W, BTN_H = 3, 150, 26
-local gridX = math.floor((W - (COLS * BTN_W + (COLS - 1) * 8)) / 2)
+local COLS, BTN_W, BTN_H = 3, 180, ns.BUTTON_H + 2
+local gridX = math.floor((W - (COLS * BTN_W + (COLS - 1) * SP.s)) / 2)
 for i, st in ipairs(STYLES) do
     local col, row = (i - 1) % COLS, math.floor((i - 1) / COLS)
     local btn = ns.MakeButton(panel, BTN_W, BTN_H, st.label)
-    btn:SetPoint("TOPLEFT", gridX + col * (BTN_W + 8), y - row * (BTN_H + 6))
+    btn:SetPoint("TOPLEFT", gridX + col * (BTN_W + SP.s), y - row * (BTN_H + SP.s))
     btn.tooltip = st.desc
     btn:SetScript("OnClick", function() SetStyle(st.key); Maines_RefreshWindow() end)
     styleButtons[st.key] = btn
 end
-y = y - math.ceil(#STYLES / COLS) * (BTN_H + 6) - 6
+y = y - math.ceil(#STYLES / COLS) * (BTN_H + SP.s) - SP.xs
 
+-- Room for two lines (the "My phrases" style adds a warning line).
 local styleDesc = Label("", ns.Fonts.Body, C.INK_SOFT)
 styleDesc:SetPoint("TOPLEFT", 0, y)
 styleDesc:SetWidth(W)
-y = y - 36
+y = y - 2 * 14 - SP.xs - SP.xl
 
 local _, ty = ns.MakeHeading(panel, "When it moves", 0, y, W)
 y = ty
-local perMessageBtn = ns.MakeButton(panel, 180, BTN_H, "One step per message")
-perMessageBtn:SetPoint("TOPLEFT", math.floor((W - 368) / 2), y)
+local perMessageBtn = ns.MakeButton(panel, 220, BTN_H, "One step per message")
+perMessageBtn:SetPoint("TOPLEFT", math.floor((W - (2 * 220 + SP.s)) / 2), y)
 perMessageBtn:SetScript("OnClick", function() SetTrigger("message"); Maines_RefreshWindow() end)
-local overTimeBtn = ns.MakeButton(panel, 180, BTN_H, "One step every...")
-overTimeBtn:SetPoint("LEFT", perMessageBtn, "RIGHT", 8, 0)
+local overTimeBtn = ns.MakeButton(panel, 220, BTN_H, "One step every...")
+overTimeBtn:SetPoint("LEFT", perMessageBtn, "RIGHT", SP.s, 0)
 overTimeBtn:SetScript("OnClick", function() SetTrigger("time"); Maines_RefreshWindow() end)
-y = y - BTN_H - 8
+y = y - BTN_H - SP.s
 
 local intervalButtons = {}
+local IV_W, IV_H = 76, ns.BUTTON_H - 2
 local prev
 for _, iv in ipairs(INTERVALS) do
-    local btn = ns.MakeButton(panel, 64, 22, iv[2])
+    local btn = ns.MakeButton(panel, IV_W, IV_H, iv[2])
     if prev then
-        btn:SetPoint("LEFT", prev, "RIGHT", 6, 0)
+        btn:SetPoint("LEFT", prev, "RIGHT", SP.s, 0)
     else
-        btn:SetPoint("TOPLEFT", math.floor((W - (#INTERVALS * 64 + (#INTERVALS - 1) * 6)) / 2), y)
+        btn:SetPoint("TOPLEFT", math.floor((W - (#INTERVALS * IV_W + (#INTERVALS - 1) * SP.s)) / 2), y)
     end
     btn:SetScript("OnClick", function() SetTrigger("time", iv[1]); Maines_RefreshWindow() end)
     intervalButtons[iv[1]] = btn
     prev = btn
 end
-y = y - 40
+y = y - IV_H - SP.xl
 
 local _, py = ns.MakeHeading(panel, "Preview", 0, y, W)
 y = py
@@ -222,7 +226,7 @@ y = py
 -- slow enough to read each step, and only while this page is open.
 local stage = CreateFrame("Frame", nil, panel, "BackdropTemplate")
 stage:SetPoint("TOPLEFT", 0, y)
-stage:SetSize(W, 54)
+stage:SetSize(W, 60)
 stage:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1})
 stage:SetBackdropColor(C.PLATE_BG[1], C.PLATE_BG[2], C.PLATE_BG[3], 1)
 stage:SetBackdropBorderColor(C.BORDER_DARK[1], C.BORDER_DARK[2], C.BORDER_DARK[3], 1)
@@ -235,8 +239,8 @@ stageShade:SetGradient("VERTICAL", CreateColor(0, 0, 0, 0.25), CreateColor(1, 0.
 
 local stageText = stage:CreateFontString(nil, "OVERLAY")
 stageText:SetFontObject(ChatFontNormal or ns.Fonts.Body)
-stageText:SetPoint("LEFT", 14, 0)
-stageText:SetPoint("RIGHT", -14, 0)
+stageText:SetPoint("LEFT", SP.l, 0)
+stageText:SetPoint("RIGHT", -SP.l, 0)
 stageText:SetJustifyH("CENTER")
 
 local stageFade = stageText:CreateAnimationGroup()
@@ -246,7 +250,7 @@ fadeIn:SetToAlpha(1)
 fadeIn:SetDuration(0.35)
 fadeIn:SetSmoothing("OUT")
 
-y = y - 62
+y = y - 60 - SP.m
 local allFrames = Label("", ns.Fonts.BodySmall, C.INK_SOFT)
 allFrames:SetPoint("TOPLEFT", 0, y)
 allFrames:SetWidth(W)
